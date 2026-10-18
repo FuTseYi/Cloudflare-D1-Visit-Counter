@@ -45,6 +45,10 @@ async function handleRequest(request, db) {
     return handleCreateCounter(request, db)
   }
 
+  if (url.pathname === '/api/rename') {
+    return handleRenameCounter(request, db)
+  }
+
   if (url.pathname === '/api/list') {
     return handleListCounters(request, db)
   }
@@ -53,9 +57,8 @@ async function handleRequest(request, db) {
     return handleDeleteCounter(request, db)
   }
 
-  if (url.pathname === '/api/preview') {
-    return handlePreviewBadge(url)
-  }
+  // Browser previews are generated locally; never offer public SVG generation.
+  if (url.pathname === '/api/preview') return textResponse('Not Found', 404)
 
   if (url.pathname === '/api/combined') {
     return handleVisitorBadge(url, db)
@@ -124,6 +127,9 @@ async function handleCreateCounter(request, db) {
   }
 
   const exists = await counterExists(db, counter)
+  if (!exists && await getCounterAlias(db, counter)) {
+    return jsonResponse({ error: 'This key is reserved by an earlier rename. Edit its active counter instead.' }, 409)
+  }
   if (exists) {
     await setCounterConfig(db, counter, badgeConfig)
     const today = todayString()
@@ -150,6 +156,105 @@ async function handleCreateCounter(request, db) {
     badge: `https://${ALLOWED_DOMAIN}/${counter}.svg?action=hit`,
     history: `https://${ALLOWED_DOMAIN}/history/${counter}.svg`,
   }, 201)
+}
+
+// Rename counters without resetting their totals, trends or badge styles.
+// D1 batch() is atomic: a uniqueness collision rolls back every statement.
+async function handleRenameCounter(request, db) {
+  if (request.method !== 'POST') return textResponse('Method not allowed', 405)
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400)
+  }
+  const authError = validateAuthCode(body.authCode)
+  if (authError) return authError
+  const previous = normalizeCounterName(body.counter)
+  const next = normalizeCounterName(body.newCounter)
+  if (!previous || !next) return jsonResponse({ error: 'Both counter keys must be 1-512 valid characters.' }, 400)
+  if (previous === next) return jsonResponse({ error: 'The new URL must differ from the current URL.' }, 400)
+  if (!isCounterAllowed(previous) || !isCounterAllowed(next)) {
+    return jsonResponse({ error: 'Both keys must be included in ALLOWED_PATHS.' }, 403)
+  }
+  if (!await counterExists(db, previous)) return jsonResponse({ error: 'Original counter not found.' }, 404)
+  // Moving back to your own previous URL is safe: release that alias inside
+  // the same transaction, then promote the key to the canonical counter.
+  const existingAlias = await getCounterAlias(db, next)
+  if (await counterExists(db, next) || (existingAlias && existingAlias !== previous)) {
+    return jsonResponse({ error: 'Target key already exists or belongs to another counter.' }, 409)
+  }
+
+  // The existing D1 table stores each counter as a family of suffixed keys.
+  // Include only its own well-known metadata and daily YYYY-MM-DD keys,
+  // so other counters with overlapping prefixes are never touched.
+  const suffixes = [':total', ':meta:config', ':meta:label', ':meta:cleanup']
+  const oldKeys = suffixes.map(suffix => previous + suffix)
+  const oldDaily = previous + ':daily:'
+  const newDaily = next + ':daily:'
+  const move = db.prepare(`
+    UPDATE counters SET name = CASE
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      ELSE ? || substr(name, ?)
+    END
+    WHERE name IN (?, ?, ?, ?)
+       OR (substr(name, 1, ?) = ? AND length(name) = ?
+           AND substr(name, ?) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+  `).bind(
+    previous + ':total', next + ':total',
+    previous + ':meta:config', next + ':meta:config',
+    previous + ':meta:label', next + ':meta:label',
+    previous + ':meta:cleanup', next + ':meta:cleanup',
+    newDaily, oldDaily.length + 1,
+    ...oldKeys,
+    oldDaily.length, oldDaily, oldDaily.length + 10, oldDaily.length + 1
+  )
+  const repoint = db.prepare("UPDATE counters SET count = ? WHERE name GLOB '*:meta:alias' AND count = ?")
+    .bind(next, previous)
+  const alias = db.prepare('INSERT INTO counters (name, count) VALUES (?, ?)')
+    .bind(previous + ':meta:alias', next)
+  const operations = [
+    ...(existingAlias === previous ? [db.prepare('DELETE FROM counters WHERE name = ?').bind(next + ':meta:alias')] : []),
+    move, repoint, alias
+  ]
+  if (body.config !== undefined) {
+    operations.push(db.prepare(`
+      INSERT INTO counters (name, count) VALUES (?, ?)
+      ON CONFLICT(name) DO UPDATE SET count = excluded.count
+    `).bind(next + ':meta:config', JSON.stringify(normalizeBadgeConfig(body.config))))
+  }
+
+  try {
+    await db.batch(operations)
+  } catch {
+    return jsonResponse({ error: 'Rename could not be completed. The target may have conflicting data; no changes were saved.' }, 409)
+  }
+  const today = todayString()
+  return jsonResponse({
+    success: true, counter: next, previous,
+    total: await getCounter(db, next + ':total'),
+    daily: await getCounter(db, next + ':daily:' + today),
+    legacyLinks: 'Existing badge and status URLs using the old counter key remain compatible.'
+  })
+}
+
+async function getCounterAlias(db, counter) {
+  // Aliases store TEXT in the legacy SQLite count column; getCounterValue
+  // intentionally coerces numeric counters and must not be used here.
+  const { results } = await db.prepare('SELECT count FROM counters WHERE name = ? LIMIT 1')
+    .bind(counter + ':meta:alias').all()
+  if (!results.length || typeof results[0].count !== 'string') return null
+  const target = normalizeCounterName(results[0].count)
+  return target && target !== counter && isCounterAllowed(target) ? target : null
+}
+
+async function resolveCounterForRead(db, counter) {
+  if (await counterExists(db, counter)) return counter
+  const target = await getCounterAlias(db, counter)
+  return target && await counterExists(db, target) ? target : null
 }
 
 async function handleListCounters(request, db) {
@@ -209,9 +314,11 @@ async function handleDeleteCounter(request, db) {
   }
 
   const dailyPrefix = `${counter}:daily:`
-  await db.prepare('DELETE FROM counters WHERE name = ? OR name = ? OR name = ? OR name = ? OR substr(name, 1, ?) = ?')
-    .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix)
-    .run()
+  await db.batch([
+    db.prepare("DELETE FROM counters WHERE name IN (?, ?, ?, ?) OR (substr(name, 1, ?) = ? AND length(name) = ? AND substr(name, ?) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')")
+      .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix, dailyPrefix.length + 10, dailyPrefix.length + 1),
+    db.prepare("DELETE FROM counters WHERE name GLOB '*:meta:alias' AND count = ?").bind(counter),
+  ])
 
   return jsonResponse({ success: true, counter })
 }
@@ -243,20 +350,29 @@ async function handleCounterRequest(url, db, counter, isSvg) {
   }
 
   const today = todayString()
-  const totalKey = `${counter}:total`
-  const dailyKey = `${counter}:daily:${today}`
   let total
   let daily
-
   if (action === 'hit') {
-    total = await incrementExistingCounter(db, totalKey)
-    if (total === null) return textResponse('Counter not found', 404)
-    daily = await incrementCounter(db, dailyKey)
+    total = await incrementExistingCounter(db, `${counter}:total`)
+    if (total === null) {
+      const canonical = await getCounterAlias(db, counter)
+      if (!canonical) return textResponse('Counter not found', 404)
+      counter = canonical
+      total = await incrementExistingCounter(db, `${counter}:total`)
+      if (total === null) return textResponse('Counter not found', 404)
+    }
+    daily = await incrementCounter(db, `${counter}:daily:${today}`)
     if (daily === 1) await cleanupOldDailyData(db, counter, today)
   } else {
-    total = await getCounterValue(db, totalKey)
-    if (total === null) return textResponse('Counter not found', 404)
-    daily = await getCounter(db, dailyKey)
+    total = await getCounterValue(db, `${counter}:total`)
+    if (total === null) {
+      const canonical = await getCounterAlias(db, counter)
+      if (!canonical) return textResponse('Counter not found', 404)
+      counter = canonical
+      total = await getCounterValue(db, `${counter}:total`)
+      if (total === null) return textResponse('Counter not found', 404)
+    }
+    daily = await getCounter(db, `${counter}:daily:${today}`)
   }
 
   if (isSvg) {
@@ -283,22 +399,8 @@ async function handleCounterRequest(url, db, counter, isSvg) {
   })
 }
 
-function handlePreviewBadge(url) {
-  const daily = clampInt(url.searchParams.get('daily'), 0, 0, 999999999)
-  const total = clampInt(url.searchParams.get('total'), 0, 0, 999999999)
-  return svgResponse(generateBadgeSvg({
-    title: getParam(url, 'label', 'title') || 'Visitors',
-    titleBg: getParam(url, 'labelColor', 'title_bg') || '#A4D3EE',
-    countBg: getParam(url, 'countColor', 'count_bg') || '#555555',
-    edgeFlat: url.searchParams.get('edge_flat') === 'true',
-    style: url.searchParams.get('style') || 'flat',
-    labelStyle: url.searchParams.get('labelStyle') || 'default',
-    dailyCount: daily,
-    totalCount: total,
-  }), 'public, max-age=60')
-}
 async function handleVisitorBadge(url, db) {
-  const counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
+  let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
     return jsonResponse({ error: 'Missing or invalid path' }, 400)
   }
@@ -308,9 +410,13 @@ async function handleVisitorBadge(url, db) {
   }
 
   const today = todayString()
-  const total = await incrementExistingCounter(db, `${counter}:total`)
+  let total = await incrementExistingCounter(db, `${counter}:total`)
   if (total === null) {
-    return textResponse('Counter not found', 404)
+    const canonical = await getCounterAlias(db, counter)
+    if (!canonical) return textResponse('Counter not found', 404)
+    counter = canonical
+    total = await incrementExistingCounter(db, `${counter}:total`)
+    if (total === null) return textResponse('Counter not found', 404)
   }
   const daily = await incrementCounter(db, `${counter}:daily:${today}`)
   if (daily === 1) await cleanupOldDailyData(db, counter, today)
@@ -334,11 +440,11 @@ async function handleStatusPage(url, db) {
     return htmlResponse(renderStatusPage({ error: 'Missing or invalid path' }))
   }
 
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return htmlResponse(renderStatusPage({ counter, error: 'Counter not found' }))
+  counter = canonical
   const today = todayString()
   const total = await getCounterValue(db, `${counter}:total`)
-  if (total === null) {
-    return htmlResponse(renderStatusPage({ counter, error: 'Counter not found' }))
-  }
   const daily = await getCounter(db, `${counter}:daily:${today}`)
   const historyDays = getHistoryDays()
   const days = clampInt(url.searchParams.get('days'), historyDays, 1, historyDays)
@@ -355,9 +461,9 @@ async function handleHistoryChart(url, db, counter) {
     return textResponse('Not Found', 404)
   }
 
-  if (!await counterExists(db, counter)) {
-    return textResponse('Counter not found', 404)
-  }
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return textResponse('Counter not found', 404)
+  counter = canonical
 
   const historyDays = getHistoryDays()
   const days = clampInt(url.searchParams.get('days'), historyDays, 1, historyDays)
@@ -388,11 +494,11 @@ async function handleMonthlyApi(url, db) {
     return textResponse('Not Found', 404)
   }
 
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return textResponse('Counter not found', 404)
+  counter = canonical
   const today = todayString()
   const total = await getCounterValue(db, `${counter}:total`)
-  if (total === null) {
-    return textResponse('Counter not found', 404)
-  }
 
   const month = today.slice(0, 7)
   const monthStart = `${month}-01`
@@ -730,7 +836,7 @@ function renderGeneratorPage() {
     .secondary-btn { background: #57606a; }
     .counter-list { display: grid; gap: 8px; margin-top: 10px; }
     .counter-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-    .counter-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; background: #f6f8fa; }
+    .counter-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; background: #f6f8fa; }
     .counter-name { overflow-wrap: anywhere; font-weight: 700; }
     .counter-total { color: #57606a; font-size: 12px; margin-top: 6px; }
     .saved-badge-img { display: block; width: max-content; max-width: 100%; height: auto; margin-top: 6px; }
@@ -773,13 +879,118 @@ function renderGeneratorPage() {
     .hex-input { width: 100%; box-sizing: border-box; min-height: 30px; font-size: 12px; }
     .toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; background: #24292f; color: #fff; border-radius: 6px; padding: 10px 12px; font-size: 13px; font-weight: 700; box-shadow: 0 10px 24px rgba(31,35,40,.18); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Public landing: informative by default, self-hosting first. */
+    body { background: radial-gradient(ellipse at 12% -8%, #e3efff 0%, transparent 38%), #f6f8fa; }
+    main { max-width: 1120px; }
+    .site-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 34px; }
+    .site-brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+    .site-brand svg { width: 34px; height: 34px; }
+    .site-brand small { display: block; color: #57606a; font-size: 11px; font-weight: 500; letter-spacing: 0; }
+    a { color: #0969da; }
+    .site-link, .cta { display: inline-flex; justify-content: center; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; }
+    .site-link { border: 1px solid #d0d7de; border-radius: 8px; padding: 10px 13px; background: white; font-size: 13px; color: #24292f; }
+    .landing { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .85fr); align-items: center; gap: 34px; padding: 16px 0 28px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #0969da; text-transform: uppercase; font-size: 11px; letter-spacing: .09em; font-weight: 800; }
+    .dot { width: 7px; height: 7px; background: #2da44e; border-radius: 50%; }
+    .landing h1 { font-size: clamp(38px, 5vw, 60px); line-height: 1.08; letter-spacing: -.055em; margin: 18px 0; }
+    .landing h1 span { color: #0969da; }
+    .lead { max-width: 640px; color: #57606a; font-size: 16px; line-height: 1.7; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+    .cta { border-radius: 8px; padding: 13px 17px; font-size: 14px; }
+    .cta-primary { background: #0969da; color: white; }
+    .cta-secondary { border: 1px solid #d0d7de; color: #24292f; background: white; }
+    .usage-note { border-left: 3px solid #bf8700; background: #fff8e6; color: #5f4b15; padding: 12px 15px; border-radius: 0 8px 8px 0; line-height: 1.65; font-size: 13px; }
+    .usage-note strong { display: block; margin-bottom: 3px; }
+    .sample-card { background: #fff; border: 1px solid #d0d7de; border-radius: 16px; padding: 24px; box-shadow: 0 15px 40px rgba(36,41,47,.06); }
+    .sample-label { font-size: 12px; color: #57606a; font-weight: 700; }
+    .sample-stage { display: grid; min-height: 140px; place-items: center; margin: 16px 0; border: 1px dashed #d0d7de; background: #f6f8fa; border-radius: 10px; }
+    .sample-badge { display: inline-flex; overflow: hidden; border-radius: 4px; font-family: Verdana,Geneva,sans-serif; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,.06); }
+    .sample-badge span, .sample-badge strong { padding: 9px 12px; font-weight: 600; }
+    .sample-badge span { background: #dbeafe; color: #1e3a8a; }
+    .sample-badge strong { color: #fff; background: #0969da; }
+    .sample-badge.green span { background: #dcfce7; color: #166534; }
+    .sample-badge.green strong { background: #238636; }
+    .sample-badge.purple span { background: #f3e8ff; color: #6b21a8; }
+    .sample-badge.purple strong { background: #8250df; }
+    .demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .demo-controls button { min-height: 30px; font-size: 12px; padding: 3px 11px; background: #f6f8fa; border: 1px solid #d0d7de; color: #24292f; }
+    .demo-controls button[aria-pressed="true"] { border-color: #0969da; color: #0969da; background: #eef5ff; }
+    .demo-caption { color: #57606a; font-size: 12px; line-height: 1.6; }
+    .steps { margin: 20px 0 32px; }
+    .section-head { margin: 0 0 14px; font-size: 19px; letter-spacing: -.02em; }
+    .step-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+    .step { padding: 18px; background: #fff; border: 1px solid #d0d7de; border-radius: 10px; }
+    .step .step-num { display: inline-grid; place-items: center; background: #eef5ff; color: #0969da; width: 27px; height: 27px; border-radius: 8px; font-size: 12px; font-weight: 800; }
+    .step h3 { margin: 12px 0 7px; font-size: 15px; }
+    .step p { margin: 0; font-size: 13px; }
+    .workspace-details { border: 1px solid #d0d7de; border-radius: 12px; background: rgba(255,255,255,.77); padding: 0 18px 18px; }
+    .workspace-details summary { list-style-position: inside; cursor: pointer; padding: 22px 2px; font-weight: 800; font-size: 17px; }
+    .workspace-details summary small { color: #57606a; font-size: 12px; font-weight: 400; display: block; margin: 7px 0 0 24px; line-height: 1.5; }
+    .workspace-details > .panel { margin-top: 0; margin-bottom: 14px; }
+    .workspace-details > .panel:last-of-type { margin-bottom: 0; }
+    .owner-hint { padding: 9px 11px; background: #eef5ff; border-radius: 7px; color: #345071; font-size: 12px; margin-bottom: 14px; }
+    .edit-banner { background: #eef5ff; border: 1px solid #b6d6fa; border-radius: 7px; padding: 10px 12px; margin: 10px 0; font-size: 13px; }
+    .footer { text-align: center; padding: 30px 8px 8px; font-size: 12px; color: #57606a; }
+    button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #54aeff; outline-offset: 3px; }
+    button[hidden], p[hidden] { display: none; }
+    @media (max-width: 760px) {
+      main { padding: 22px 14px 38px; }
+      .landing { grid-template-columns: minmax(0,1fr); gap: 16px; }
+      .step-grid { grid-template-columns: 1fr; }
+      .site-head { margin-bottom: 14px; }
+      .site-brand { font-size: 13px; }
+      .sample-stage { min-height: 108px; }
+      .workspace-details { padding: 0 12px 12px; }
+      .workspace-details .panel { padding: 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .powered-title { font-size: 32px; } .counter-item { grid-template-columns: auto minmax(0, 1fr); } .counter-item button { width: 100%; } .field-title { align-items: flex-start; flex-direction: column; gap: 2px; } .field-note { text-align: left; } }
   </style>
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <main>
-    <header class="product-head"><div class="brand-title-row">${PROJECT_LOGO_SVG}<div class="powered-title"><span class="powered-prefix">Powered by</span> <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Cloudflare-D1-Visit-Counter</a></div></div></header>
+    <header class="site-head">
+      <div class="site-brand">${PROJECT_LOGO_SVG}<div>Cloudflare D1 Visit Counter<small>Open-source · Self-hosted visitor badges</small></div></div>
+      <a class="site-link" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+    </header>
+    <section class="landing" aria-labelledby="introTitle">
+      <div>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Open source · Bring your own Cloudflare</span>
+        <h1 id="introTitle">Visitor badges.<br><span>Your infrastructure.</span></h1>
+        <p class="lead">Create your own GitHub README and website visit counters, with customizable SVG badges, a history dashboard, and statistics stored in your Cloudflare D1 database.</p>
+        <div class="cta-row">
+          <a class="cta cta-primary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter#快速部署" target="_blank" rel="noopener noreferrer">Deploy your own instance ↗</a>
+          <a class="cta cta-secondary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Explore source code</a>
+        </div>
+        <div class="usage-note" role="note">
+          <strong>This is a showcase, not a free badge-hosting service.</strong>
+          This page is a public preview of a privately operated Worker. Visitors cannot create counters, generate working badge links, or use the owner's D1 storage here. To issue real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.<span lang="zh-CN" style="display:block;margin-top:7px;">本站仅用于开源项目展示，不提供免费徽章生成或后台托管服务。请在自己的 Cloudflare 账号中部署后使用。</span>
+        </div>
+      </div>
+      <aside class="sample-card" aria-label="Illustrative badge design demo">
+        <div class="sample-label">STYLE EXAMPLE · STATIC DEMO</div>
+        <div class="sample-stage"><div class="sample-badge" id="sampleBadge"><span>Visitors</span><strong>24 / 1,280</strong></div></div>
+        <div class="demo-controls" role="group" aria-label="Try sample badge color">
+          <button type="button" data-demo-theme="blue" aria-pressed="true">Blue</button>
+          <button type="button" data-demo-theme="green" aria-pressed="false">Green</button>
+          <button type="button" data-demo-theme="purple" aria-pressed="false">Purple</button>
+        </div>
+        <p class="demo-caption">Illustrative values only. This interactive style sample makes no API calls, saves no data, and does not create a usable visit counter.</p>
+      </aside>
+    </section>
+    <section class="steps" id="get-started" aria-labelledby="stepsTitle">
+      <h2 class="section-head" id="stepsTitle">Your own counter in three steps</h2>
+      <div class="step-grid">
+        <div class="step"><span class="step-num">01</span><h3>Get the code</h3><p>Open the <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub repository</a> and copy <code>worker.js</code>.</p></div>
+        <div class="step"><span class="step-num">02</span><h3>Create a D1 database</h3><p>Initialize the counters table in your Cloudflare account and bind it as <code>HITS</code>.</p></div>
+        <div class="step"><span class="step-num">03</span><h3>Deploy &amp; generate</h3><p>Set <code>ALLOWED_DOMAIN</code> and <code>AUTH_CODE</code>, deploy your Worker, then create badges on your own URL.</p></div>
+      </div>
+    </section>
+    <details id="ownerDashboard" class="workspace-details">
+      <summary>Private management workspace <small>For the owner of this deployment only. Auth Code required for creating, editing, listing and deleting counters.</small></summary>
+      <p class="owner-hint">This dashboard manages only the counters stored in the connected D1 database. Public visitors should deploy their own instance instead.</p>
     <section class="panel">
       <div class="grid">
         <label style="grid-column: 1 / -1;">Auth Code<input id="authCode" type="password" placeholder="Deploy your own Worker and configure AUTH_CODE in worker.js to unlock all features"></label>
@@ -821,9 +1032,10 @@ function renderGeneratorPage() {
           </select>
         </label>
       </div>
-      <p class="hint">URL is the public key for badge data and the status page. Page names, repository paths, and Chinese keys are also supported. Badge Label only changes the text shown on the badge.</p>
+      <p class="hint">URL is the saved counter key; Badge Label changes only the visible text. To move an existing counter and keep its visits, choose Edit below.</p>
+      <p class="edit-banner" id="editNotice" hidden aria-live="polite">Editing an existing counter. Change the URL to migrate its total visits, history and badge style; old badge links will keep working.</p>
       <div class="actions">
-        <button id="create">Create Counter</button><button id="loadCounters" class="secondary-btn" type="button">Load Created Counters</button>
+        <button id="create">Create Counter</button><button id="saveCounter" type="button" hidden>Save Changes</button><button id="cancelEdit" type="button" class="secondary-btn" hidden>Cancel Edit</button><button id="loadCounters" class="secondary-btn" type="button">Load Created Counters</button>
         <div class="preview"><img id="badgePreview" alt=""><a id="statusLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; margin-left:12px; color:#0969da; font-weight:700;">Open status page</a></div>
       </div>
     </section>
@@ -836,10 +1048,12 @@ function renderGeneratorPage() {
     </section>
     <section class="panel">
       <h2>Created Counters</h2>
-      <p class="hint">Load requires Auth Code. Deleting a counter removes its badge data and status chart data.</p>
+      <p class="hint">Select Use to copy an existing link, or Edit to update its URL and style without resetting statistics. Delete permanently removes its data. All actions require the owner's Auth Code.</p>
       <div class="counter-toolbar"><button id="selectAllCounters" class="secondary-btn" type="button">Select All</button><button id="deleteSelectedCounters" class="danger-btn" type="button">Delete Selected</button></div>
       <div id="counterList" class="counter-list"><span class="empty">No counters loaded.</span></div>
     </section>
+    </details>
+    <footer class="footer">Open-source software · Bring your own Cloudflare Workers + D1 · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub source &amp; deployment guide ↗</a></footer>
   </main>
   <script>
     const domain = location.host
@@ -847,6 +1061,13 @@ function renderGeneratorPage() {
     let createdCounter = ''
     let currentCounts = { daily: 0, total: 0 }
     let outputMode = 'saved'
+    let editingCounter = ''
+    for (const button of document.querySelectorAll('[data-demo-theme]')) {
+      button.addEventListener('click', () => {
+        $('sampleBadge').className = 'sample-badge' + (button.dataset.demoTheme === 'blue' ? '' : ' ' + button.dataset.demoTheme)
+        for (const other of document.querySelectorAll('[data-demo-theme]')) other.setAttribute('aria-pressed', String(button === other))
+      })
+    }
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -924,21 +1145,48 @@ function renderGeneratorPage() {
       })
       return 'https://' + domain + '/api/combined?' + params.toString()
     }
+    // Render saved / edited badge previews entirely in the browser.
+    // No unauthenticated preview API, D1 query or public badge generator.
     function previewImageUrl(counter, config = {}, counts = {}) {
-      const params = new URLSearchParams({
-        path: counter,
-        label: config.label || $('label').value || 'Visitors',
-        labelColor: config.labelColor || $('labelColor').value || '#A4D3EE',
-        countColor: config.countColor || $('countColor').value || '#555555',
-        style: config.style || $('style').value,
-        labelStyle: config.labelStyle || $('labelStyle').value,
-        daily: String(counts.daily || 0),
-        total: String(counts.total || 0),
-      })
-      return 'https://' + domain + '/api/preview?' + params.toString()
+      const label = String(config.label || $('label').value || 'Visitors').slice(0, 48)
+      const style = config.style || $('style').value || 'flat'
+      const labelStyle = config.labelStyle || $('labelStyle').value || 'default'
+      const leftText = style === 'for-the-badge' ? label.toUpperCase() : label
+      const rightText = labelStyle === 'none'
+        ? String(counts.total || 0)
+        : String(counts.daily || 0) + ' / ' + String(counts.total || 0)
+      const textWidth = value => Math.max(28, 10 + [...value].reduce((sum, char) => sum + (char.charCodeAt(0) > 255 ? 14 : 7), 0))
+      const big = style === 'for-the-badge'
+      const h = big ? 28 : 20
+      const leftWidth = textWidth(leftText) + (big ? 14 : 0)
+      const rightWidth = textWidth(rightText) + (big ? 14 : 0)
+      const w = leftWidth + rightWidth
+      const radius = style === 'flat-square' || big ? 0 : 3
+      const labelBg = style === 'social' ? '#FFFFFF' : normalizeHex(config.labelColor || $('labelColor').value, '#A4D3EE')
+      const countBg = normalizeHex(config.countColor || $('countColor').value, '#555555')
+      const labelFg = style === 'social' ? '#24292F' : readableTextColor(labelBg)
+      const countFg = readableTextColor(countBg)
+      const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img">' +
+        '<defs><clipPath id="clip"><rect width="' + w + '" height="' + h + '" rx="' + radius + '"/></clipPath></defs>' +
+        '<g clip-path="url(#clip)"><rect width="' + leftWidth + '" height="' + h + '" fill="' + labelBg + '"/>' +
+        '<rect x="' + leftWidth + '" width="' + rightWidth + '" height="' + h + '" fill="' + countBg + '"/></g>' +
+        '<g font-family="Verdana,Geneva,sans-serif" font-size="' + (big ? 12 : 11) + '" text-anchor="middle" font-weight="' + (big ? '700' : '400') + '">' +
+        '<text x="' + Math.floor(leftWidth / 2) + '" y="' + (big ? 18 : 14) + '" fill="' + labelFg + '">' + esc(leftText) + '</text>' +
+        '<text x="' + (leftWidth + Math.floor(rightWidth / 2)) + '" y="' + (big ? 18 : 14) + '" fill="' + countFg + '">' + esc(rightText) + '</text></g></svg>'
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
     }
     function statusUrl(counter) {
       return 'https://' + domain + '/status?path=' + encodeURIComponent(counter)
+    }
+    function clearOutputs(message = 'Create or select a counter first.') {
+      for (const id of ['markdownCode', 'markdownLinkCode', 'htmlCode', 'imageUrlCode', 'statusUrlCode']) {
+        const node = $(id)
+        node.textContent = message
+        node.classList.add('empty')
+      }
+      $('badgePreview').removeAttribute('src')
+      $('statusLink').style.display = 'none'
     }
     function setCode(id, text) {
       const node = $(id)
@@ -992,6 +1240,7 @@ function renderGeneratorPage() {
         useButton.className = 'secondary-btn'
         useButton.textContent = 'Use'
         useButton.addEventListener('click', () => {
+          stopEditing()
           createdCounter = item.counter
           $('source').value = item.counter
           $('label').value = config.label || ''
@@ -1001,6 +1250,27 @@ function renderGeneratorPage() {
           setPickerColor('countColor', config.countColor || '#555555')
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
         })
+        const editButton = document.createElement('button')
+        editButton.type = 'button'
+        editButton.className = 'secondary-btn'
+        editButton.textContent = 'Edit'
+        editButton.addEventListener('click', () => {
+          editingCounter = item.counter
+          createdCounter = item.counter
+          $('source').value = item.counter
+          $('label').value = config.label || ''
+          $('style').value = config.style || 'flat'
+          $('labelStyle').value = config.labelStyle || 'default'
+          setPickerColor('labelColor', config.labelColor || '#A4D3EE')
+          setPickerColor('countColor', config.countColor || '#555555')
+          $('editNotice').hidden = false
+          $('create').hidden = true
+          $('saveCounter').hidden = false
+          $('cancelEdit').hidden = false
+          updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
+          $('source').focus()
+          $('source').scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
         const deleteButton = document.createElement('button')
         deleteButton.type = 'button'
         deleteButton.className = 'danger-btn'
@@ -1008,10 +1278,67 @@ function renderGeneratorPage() {
         deleteButton.addEventListener('click', async () => {
           await deleteCounters([item.counter])
         })
-        row.append(checkbox, info, useButton, deleteButton)
+        row.append(checkbox, info, useButton, editButton, deleteButton)
         list.appendChild(row)
       }
     }
+    function stopEditing() {
+      editingCounter = ''
+      $('editNotice').hidden = true
+      $('create').hidden = false
+      $('saveCounter').hidden = true
+      $('cancelEdit').hidden = true
+    }
+    function badgeFields() {
+      return {
+        label: $('label').value.trim(),
+        labelColor: $('labelColor').value,
+        countColor: $('countColor').value,
+        style: $('style').value,
+        labelStyle: $('labelStyle').value
+      }
+    }
+    $('cancelEdit').addEventListener('click', () => {
+      stopEditing()
+      createdCounter = ''
+      $('source').value = ''
+      clearOutputs()
+      showToast('Edit cancelled')
+    })
+    $('saveCounter').addEventListener('click', async () => {
+      const previous = editingCounter
+      const next = counterValue()
+      const authCode = $('authCode').value.trim()
+      if (!previous || !next || !authCode) {
+        alert('A valid URL and Auth Code are required')
+        return
+      }
+      const renamed = next !== previous
+      if (renamed && !confirm('Move this counter to the new URL? Existing visits and old badge links will be preserved.')) return
+      const save = $('saveCounter')
+      save.disabled = true
+      try {
+        const payload = renamed
+          ? { counter: previous, newCounter: next, authCode, config: badgeFields() }
+          : { counter: previous, authCode, ...badgeFields() }
+        const res = await fetch(renamed ? '/api/rename' : '/api/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Save failed')
+        stopEditing()
+        createdCounter = next
+        updateOutputs(next, { daily: data.daily || 0, total: data.total || 0 })
+        await loadCounters()
+        showToast(renamed ? 'URL migrated; old badge links still work' : 'Badge style saved')
+      } catch (error) {
+        alert(error.message || 'Could not save changes')
+      } finally {
+        save.disabled = false
+      }
+    })
     function selectedCounters() {
       return Array.from(document.querySelectorAll('.counter-select:checked')).map(input => input.value)
     }
@@ -1085,7 +1412,7 @@ function renderGeneratorPage() {
       createdCounter = counter
       updateOutputs(counter, { daily: data.daily || 0, total: data.total || 0 })
       await loadCounters()
-      showToast(data.exists ? 'Counter already exists, links updated' : 'Counter created')
+      showToast(data.exists ? 'Saved existing counter style' : 'Counter created')
     })
     $('loadCounters').addEventListener('click', () => loadCounters({ notify: true, scroll: true }))
     function setOutputMode(mode) {
@@ -1130,8 +1457,9 @@ function renderGeneratorPage() {
     }
     for (const button of document.querySelectorAll('[data-copy]')) {
       button.addEventListener('click', async () => {
-        const code = $(button.dataset.copy).textContent
-        if (!code || code === 'Create a counter first.') return
+        const output = $(button.dataset.copy)
+        const code = output.textContent
+        if (!code || output.classList.contains('empty')) return
         await copyText(code)
         const old = button.textContent
         button.textContent = 'Copied'
@@ -1140,7 +1468,7 @@ function renderGeneratorPage() {
     }
     $('source').addEventListener('input', () => {
       if (counterValue() !== createdCounter) {
-        $('badgePreview').removeAttribute('src')
+        clearOutputs(editingCounter ? 'Save changes to generate the new URL.' : 'Create or select a counter first.')
       }
     })
   </script>

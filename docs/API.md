@@ -53,6 +53,26 @@ curl -X POST https://your.domain.com/api/create \
   }'
 ```
 
+### Rename a Counter (Preserving Statistics)
+
+```bash
+curl -X POST https://your.domain.com/api/rename \
+  -H "Content-Type: application/json" \
+  -d '{
+    "counter": "https://old.example.com/",
+    "newCounter": "https://new.example.com/",
+    "authCode": "your-auth-code"
+  }'
+```
+
+This endpoint atomically moves the counter's total, daily history, legacy label, cleanup metadata and saved badge configuration to the new key. You may optionally provide a `config` object with `label`, `labelColor`, `countColor`, `style` and `labelStyle` to save new visual settings as part of the same transaction.
+
+- The original counter must exist. Both keys must pass `ALLOWED_PATHS` when configured.
+- Renaming onto an existing counter or another counter's reserved alias returns HTTP `409`. No totals are overwritten.
+- Previous keys remain reserved as forwarding aliases for existing badge, status, history, monthly and legacy endpoints. Aliases follow subsequent renames.
+- You can rename back to your own previous key. Deleting the canonical counter also removes its aliases.
+- Aliases preserve **counter keys only**. If you change your Worker's host / custom domain, update the domain in embedded badge URLs separately.
+
 ### List Counters
 
 ```bash

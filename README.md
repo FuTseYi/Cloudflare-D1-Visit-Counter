@@ -48,7 +48,7 @@
     - [2. 进入 Workers \& Pages](#2-进入-workers--pages)
     - [3. 先绑定 D1](#3-先绑定-d1)
     - [4. 创建并编辑 Worker 代码](#4-创建并编辑-worker-代码)
-    - [5. 绑定自定义域名](#5-绑定自定义域名)
+    - [5. 使用 workers.dev 或绑定自定义域名](#5-使用-workersdev-或绑定自定义域名)
   - [看板功能](#看板功能)
   - [趋势数据保留](#趋势数据保留)
   - [使用示例](#使用示例)
@@ -74,9 +74,9 @@
 | -------------------- | ------------------------------------------------------------------- | ------------------------------------------- |
 | 完全自有             | 使用你自己的 Cloudflare Worker、D1、域名和数据表                    | 多数依赖公共服务域名，服务可用性不可控      |
 | 一次部署，多用途复用 | 一个 Worker 可以服务多个 README、网站、博客、文档页面               | 常见方案更像单个 badge URL，后续管理能力弱  |
-| 唯一密码启动和管理   | `AUTH_CODE` 保护 create / list / delete，只允许你创建和维护 counter | 很多 badge URL 可直接生成或缺少管理权限边界 |
+| 唯一密码启动和管理   | `AUTH_CODE` 保护 create / list / rename / delete，只允许你创建和维护 counter | 很多 badge URL 可直接生成或缺少管理权限边界 |
 | 防滥用               | 公开 badge URL 不会自动创建新 counter                               | 容易被随机 path 填充数据或污染统计          |
-| 统一管理看板         | 可创建、加载、预览、复用、批量删除不同页面的 counter                | 常见方案只给 URL，没有完整管理面板          |
+| 统一管理看板         | 可创建、加载、编辑、更改 URL、预览、复用和批量删除不同页面的 counter                | 常见方案只给 URL，没有完整管理面板          |
 | 统计页               | 每个 counter 自动拥有公开 status page                               | 很多项目只返回 badge，没有可读状态页        |
 | 样式保存             | 保存 Badge Label、颜色、样式、类型                                  | 重新生成时往往只靠 URL 参数                 |
 | 数据隔离             | URL / counter key 是真实数据键，Badge Label 只是显示名              | 常见说明容易把显示名和数据键混在一起        |
@@ -213,7 +213,7 @@ const HISTORY_DAYS = 30
 | 配置             | 必填 | 说明                                                                |
 | ---------------- | ---- | ------------------------------------------------------------------- |
 | `ALLOWED_DOMAIN` | 是   | 你的计数器域名，不带 `https://`。其他 Host 会返回 `404`。           |
-| `AUTH_CODE`      | 是   | 创建、加载、删除 counter 的管理密钥，必须改掉默认值。               |
+| `AUTH_CODE`      | 是   | 创建、编辑、迁移、加载、删除 counter 的管理密钥，必须改掉默认值。               |
 | `ALLOWED_PATHS`  | 否   | 留空表示允许所有已创建 counter；填入列表后只允许这些 counter key。  |
 | `HISTORY_DAYS`   | 否   | 趋势图默认显示和 daily 明细保留天数。总访问量不受影响，会永久累计。 |
 
@@ -223,29 +223,31 @@ const HISTORY_DAYS = 30
   <img src="docs/images/deploy-09-deploy-worker.png" alt="Deploy the Cloudflare Worker" width="860" />
 </p>
 
-### 5. 绑定自定义域名
+### 5. 使用 workers.dev 或绑定自定义域名
 
-给 Worker 添加自定义域名，并确保域名和 `worker.js` 里的 `ALLOWED_DOMAIN` 完全一致。
+无需购买域名也可以长期使用 Cloudflare 提供的 `*.workers.dev` 地址，例如将 `ALLOWED_DOMAIN` 设为 `visit-counter.example.workers.dev`。如需使用自定义域名，也可以给 Worker 添加域名路由。两种方式都必须确保实际访问的 Host 与 `ALLOWED_DOMAIN` 完全一致。
 
 <p align="center">
   <img src="docs/images/deploy-10-add-custom-domain.png" alt="Add a custom domain for the Worker" width="860" />
 </p>
 
-到这里部署已经完成。打开你的域名即可进入管理看板：
+到这里部署已经完成。打开你配置的 `workers.dev` 或自定义域名即可进入管理看板：
 
 ```url
 https://your.domain.com/
 ```
 
-输入 `AUTH_CODE` 后，就可以创建 counter、预览徽章，并复制 Markdown / HTML / Image URL 到 README 或网站中使用。
+打开管理区并输入 `AUTH_CODE` 后，就可以创建 counter、预览徽章，并复制 Markdown / HTML / Image URL 到 README 或网站中使用。
 
 ## 看板功能
 
-看板负责创建、预览、生成链接和管理已有 counter。
+看板负责创建、预览、生成链接和管理已有 counter。首页的公开示例**不是免费的访问量托管服务**：访客只能查看静态徽章示例和部署指引，不能使用站长的 D1 数据库创建真实徽章。请部署到自己的 Cloudflare 账号，并配置自己的 `AUTH_CODE` 后使用。
+
+管理区中的 **Use** 用于重新生成已有徽章链接；**Edit** 可以修改徽章样式，还可安全地重命名 URL / Counter Key，保留累计访问量、日趋势和样式数据。旧 Counter Key 的徽章和统计页链接会继续映射到新 Counter Key；注意 Worker **主机名**发生变化时，仍须更新嵌入链接的主机名。编辑后的旧 Key 将被保留作兼容别名，不能用于新建其他计数器；可将计数器安全地改回自己的旧 Key。
 
 | 字段             | 说明                                                          |
 | ---------------- | ------------------------------------------------------------- |
-| Auth Code        | 只有输入正确 Auth Code 才能创建、加载和删除。                 |
+| Auth Code        | 只有输入正确 Auth Code 才能创建、加载、编辑、迁移和删除。                 |
 | URL              | 真实 counter key，可以是 URL、页面名、仓库路径或中文。        |
 | Badge Label      | 徽章显示名，只影响展示文字。                                  |
 | Label Background | 左侧背景色，默认 `#A4D3EE`。                                  |
