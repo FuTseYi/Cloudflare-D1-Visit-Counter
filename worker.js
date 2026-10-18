@@ -1179,6 +1179,15 @@ function renderGeneratorPage() {
     function statusUrl(counter) {
       return 'https://' + domain + '/status?path=' + encodeURIComponent(counter)
     }
+    function clearOutputs(message = 'Create or select a counter first.') {
+      for (const id of ['markdownCode', 'markdownLinkCode', 'htmlCode', 'imageUrlCode', 'statusUrlCode']) {
+        const node = $(id)
+        node.textContent = message
+        node.classList.add('empty')
+      }
+      $('badgePreview').removeAttribute('src')
+      $('statusLink').style.display = 'none'
+    }
     function setCode(id, text) {
       const node = $(id)
       node.textContent = text
@@ -1293,7 +1302,7 @@ function renderGeneratorPage() {
       stopEditing()
       createdCounter = ''
       $('source').value = ''
-      $('badgePreview').removeAttribute('src')
+      clearOutputs()
       showToast('Edit cancelled')
     })
     $('saveCounter').addEventListener('click', async () => {
@@ -1448,8 +1457,9 @@ function renderGeneratorPage() {
     }
     for (const button of document.querySelectorAll('[data-copy]')) {
       button.addEventListener('click', async () => {
-        const code = $(button.dataset.copy).textContent
-        if (!code || code === 'Create a counter first.') return
+        const output = $(button.dataset.copy)
+        const code = output.textContent
+        if (!code || output.classList.contains('empty')) return
         await copyText(code)
         const old = button.textContent
         button.textContent = 'Copied'
@@ -1458,14 +1468,7 @@ function renderGeneratorPage() {
     }
     $('source').addEventListener('input', () => {
       if (counterValue() !== createdCounter) {
-        $('badgePreview').removeAttribute('src')
-        if (editingCounter) {
-          for (const id of ['markdownCode', 'markdownLinkCode', 'htmlCode', 'imageUrlCode', 'statusUrlCode']) {
-            $(id).textContent = 'Save changes to generate the new URL.'
-            $(id).classList.add('empty')
-          }
-          $('statusLink').style.display = 'none'
-        }
+        clearOutputs(editingCounter ? 'Save changes to generate the new URL.' : 'Create or select a counter first.')
       }
     })
   </script>
