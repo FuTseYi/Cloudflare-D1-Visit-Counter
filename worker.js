@@ -1093,6 +1093,8 @@ function renderGeneratorPage(request) {
     .admin-main .mode-row{margin-bottom:14px}
     .admin-main .preview{flex-wrap:wrap;gap:10px}
     .admin-main .hint{line-height:1.65}
+    .gate-buttons{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.gate-buttons button{min-width:138px}
+    .list-controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:19px}.list-controls label:first-child{flex:2;min-width:180px}.list-controls label:last-child{flex:1;min-width:150px}
     .owner-tip{font-size:12px;color:#6e829c;border-left:3px solid #719af0;padding:10px 13px;background:#f2f6ff;border-radius:0 8px 8px 0;margin-bottom:20px}
     #counterListPanel{margin-top:18px}
     .admin-main .counter-list{margin-top:18px}
@@ -1119,7 +1121,7 @@ function renderGeneratorPage(request) {
         <div class="admin-head"><div><span class="eyebrow">${t('OWNER CONSOLE','站长控制台')}</span><h1>${t('Counter dashboard','计数器管理后台')}</h1><p>${t('Create, customize and maintain your badges from one place.','在一个工作区中创建、编辑和维护所有访问量徽章。')}</p></div><span class="private-tag">● ${t('Private · Auth required','私有 · 需要验证')}</span></div>
         <section class="surface gate" id="authGate"><div class="gate-header"><h2>${t('Unlock your workspace','解锁管理工作区')}</h2><p>${t('Use the Auth Code configured when you deployed your own Worker. Credentials are never stored in the browser.','输入部署 Worker 时设置的 Auth Code。管理密码不会保存在浏览器中。')}</p></div>
           <label>${t('Auth Code','管理密码')}<input id="authCode" type="password" autocomplete="off" placeholder="${t('Enter deployment Auth Code','输入部署时设置的管理密码')}"></label>
-          <button id="loadCounters" type="button">${t('Unlock & load','解锁并加载')} →</button>
+          <div class="gate-buttons"><button id="loadCounters" type="button">${t('Unlock & load','解锁并加载')} →</button><button id="lockDashboard" type="button" hidden class="secondary-btn">${t('Lock workspace','锁定工作区')}</button></div>
         </section>
         <div id="workspaceContent" hidden>
           <section id="overviewPanel" class="stats-overview" aria-label="${t('Counters summary','计数器汇总')}">
@@ -1132,7 +1134,6 @@ function renderGeneratorPage(request) {
       <h2>${t('Create or edit badge','创建与编辑徽章')}</h2>
       <p class="panel-title">${t('Configure a counter and preview how it will look.','配置计数器，并实时预览徽章样式。')}</p>
       <div class="grid">
-        <label style="grid-column: 1 / -1;">Auth Code<input id="authCode" type="password" placeholder="Deploy your own Worker and configure AUTH_CODE in worker.js to unlock all features"></label>
         <label><span class="field-title"><span>${t('Counter URL / key','计数器地址 / Key')}</span><span class="field-note">${t('Supports full URLs and custom keys','支持完整 URL 和自定义 Key')}</span></span><input id="source"></label>
         <label><span class="field-title"><span>${t('Badge label','徽章标签')}</span><span class="field-note"></span></span><input id="label"></label>
         <div class="color-row">
@@ -1190,6 +1191,7 @@ function renderGeneratorPage(request) {
     <section class="panel" id="counterListPanel">
       <h2>${t('Created counters','已创建的计数器')}</h2>
       <p class="hint">${t('Use loads saved links; Edit changes the key and style while preserving counts. Deletion is permanent. All actions require authorization.','使用可加载已有链接；编辑可调整地址与样式并保留统计；删除不可恢复。所有管理操作都需要验证。')}</p>
+      <div class="list-controls"><label>${t('Search counters','搜索计数器')}<input id="counterSearch" type="search" placeholder="${t('Search by URL or key','按 URL 或 Key 搜索')}"></label><label>${t('Sort by','排序方式')}<select id="sortCounters"><option value="name">${t('Name','名称')}</option><option value="total">${t('Most visits','访问量最多')}</option><option value="daily">${t('Most visits today','今日访问最多')}</option></select></label></div>
       <div class="counter-toolbar"><button id="selectAllCounters" class="secondary-btn" type="button">${t('Select all','全选')}</button><button id="deleteSelectedCounters" class="danger-btn" type="button">${t('Delete selected','删除选中')}</button></div>
       <div id="counterList" class="counter-list"><span class="empty">${t('Unlock to view your counters.','验证后查看已创建计数器。')}</span></div>
     </section>
@@ -1207,6 +1209,7 @@ function renderGeneratorPage(request) {
     let currentCounts = { daily: 0, total: 0 }
     let outputMode = 'saved'
     let editingCounter = ''
+    let allCounters = []
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -1359,7 +1362,16 @@ function renderGeneratorPage(request) {
       $('counterCount').textContent = counters.length.toLocaleString()
       $('visitCount').textContent = counters.reduce((n,v)=>n+(Number(v.total)||0),0).toLocaleString()
       $('todayCount').textContent = counters.reduce((n,v)=>n+(Number(v.daily)||0),0).toLocaleString()
-      for (const item of counters) {
+      const query = $('counterSearch').value.trim().toLocaleLowerCase()
+      const rows = counters.filter(item => item.counter.toLocaleLowerCase().includes(query))
+      const sortBy = $('sortCounters').value
+      if (sortBy === 'name') rows.sort((a,b)=>a.counter.localeCompare(b.counter))
+      else rows.sort((a,b)=>Number(b[sortBy]) - Number(a[sortBy]) || a.counter.localeCompare(b.counter))
+      if (!rows.length) {
+        list.innerHTML = '<span class="empty">' + tr('No matching counters.','没有匹配的计数器。') + '</span>'
+        return
+      }
+      for (const item of rows) {
         const row = document.createElement('div')
         row.className = 'counter-item'
         const checkbox = document.createElement('input')
@@ -1529,8 +1541,10 @@ function renderGeneratorPage(request) {
         alert(data.error || 'Load failed')
         return
       }
-      renderCounterList(data.counters || [])
+      allCounters = data.counters || []
+      renderCounterList(allCounters)
       $('workspaceContent').hidden = false
+      $('lockDashboard').hidden = false
       if (options.notify) showToast(tr('Counters loaded','计数器已加载'))
       if (options.scroll) $('counterList').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
@@ -1561,6 +1575,19 @@ function renderGeneratorPage(request) {
       showToast(data.exists ? 'Saved existing counter style' : 'Counter created')
     })
     $('loadCounters').addEventListener('click', () => loadCounters({ notify: true, scroll: false }))
+    $('counterSearch').addEventListener('input', () => renderCounterList(allCounters))
+    $('sortCounters').addEventListener('change', () => renderCounterList(allCounters))
+    $('lockDashboard').addEventListener('click', () => {
+      $('authCode').value = ''
+      $('workspaceContent').hidden = true
+      $('lockDashboard').hidden = true
+      allCounters = []
+      createdCounter = ''
+      stopEditing()
+      clearOutputs()
+      $('counterList').replaceChildren()
+      showToast(tr('Workspace locked','工作区已锁定'))
+    })
     $('authCode').addEventListener('keydown', event => {
       if (event.key === 'Enter') loadCounters({ notify: true, scroll: false })
     })
