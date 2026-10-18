@@ -1097,7 +1097,7 @@ function renderGeneratorPage(request) {
     .admin-main .output-row code{min-height:44px;max-height:116px;overflow:auto;overflow-wrap:anywhere}
     .admin-main .embed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 24px;align-items:start}
     .admin-main .embed-field{min-width:0}
-    .admin-main .embed-field>label{display:block;margin:0 0 9px}
+    .admin-main .embed-field>.embed-field-label{display:block;margin:0 0 9px;font-size:12px;color:#52627a;font-weight:700}
     .admin-main .embed-field:last-child{grid-column:1/-1}
     .admin-main #embedPanel .mode-row{margin-bottom:23px}
     .admin-main #embedPanel .copy-btn{height:44px;min-height:44px}
@@ -1200,10 +1200,10 @@ function renderGeneratorPage(request) {
     <section class="panel" id="embedPanel">
       <h2>${t('Embed & share','嵌入与分享')}</h2><p class="panel-title">${t('Copy the generated Markdown or HTML after saving your counter.','保存计数器后，即可复制 Markdown 或 HTML 嵌入代码。')}</p>
       <div class="mode-row"><span class="mode-label">${t('Link mode','链接模式')}</span><div class="segmented"><button id="savedMode" class="active" type="button">${t('Saved style','保存的样式')}</button><button id="customMode" type="button">${t('Custom URL','自定义链接')}</button></div></div><div class="embed-grid">
-      <div class="embed-field"><label for="markdownCode">${t('Markdown · badge','Markdown · 徽章')}</label><div class="output-row"><code id="markdownCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownCode">${t('Copy','复制')}</button></div></div>
-      <div class="embed-field"><label for="markdownLinkCode">${t('Markdown · linked to analytics','Markdown · 链接到统计')}</label><div class="output-row"><code id="markdownLinkCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownLinkCode">${t('Copy','复制')}</button></div></div>
-      <div class="embed-field"><label for="htmlCode">${t('HTML · linked to analytics','HTML · 链接到统计')}</label><div class="output-row"><code id="htmlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="htmlCode">${t('Copy','复制')}</button></div></div>
-      <div class="embed-field"><label for="imageUrlCode">${t('Image URL','徽章图片链接')}</label><div class="output-row"><code id="imageUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="imageUrlCode">${t('Copy','复制')}</button></div></div><div class="embed-field"><label for="statusUrlCode">${t('Analytics URL','统计详情链接')}</label><div class="output-row"><code id="statusUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="statusUrlCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('Markdown · badge','Markdown · 徽章')}</span><div class="output-row"><code id="markdownCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('Markdown · linked to analytics','Markdown · 链接到统计')}</span><div class="output-row"><code id="markdownLinkCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownLinkCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('HTML · linked to analytics','HTML · 链接到统计')}</span><div class="output-row"><code id="htmlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="htmlCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('Image URL','徽章图片链接')}</span><div class="output-row"><code id="imageUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="imageUrlCode">${t('Copy','复制')}</button></div></div><div class="embed-field"><span class="embed-field-label">${t('Analytics URL','统计详情链接')}</span><div class="output-row"><code id="statusUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="statusUrlCode">${t('Copy','复制')}</button></div></div>
       </div>
     </section>
           </div>
