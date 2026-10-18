@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/database-Cloudflare%20D1-5A67D8" alt="Cloudflare D1" />
   <img src="https://img.shields.io/badge/output-SVG%20Badge-2ECC71" alt="SVG Badge" />
   <img src="https://img.shields.io/badge/deploy-serverless-24292F" alt="serverless" />
+  <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter/releases/latest"><img src="https://img.shields.io/github/v/release/FuTseYi/Cloudflare-D1-Visit-Counter?label=release&amp;color=2da44e" alt="Latest stable release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
 </p>
 
@@ -30,6 +31,7 @@ Deploy it once, then use it as a multi-purpose **GitHub README visitor badge**, 
 - [Deploy in minutes🚀](#quick-start-deployment)
 - [Create your first badge](#dashboard)
 - [Copy Markdown / HTML / Image URL](#examples)
+- [What's new / Changelog](CHANGELOG.md)
 - [Read the API reference](docs/API.md)
 - [Security and privacy](docs/SECURITY.md)
 
