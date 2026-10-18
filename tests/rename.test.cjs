@@ -181,7 +181,7 @@ test('status pages work for existing keys and historical aliases without increme
     assert.equal(response.status, 200)
     const html = await response.text()
     assert.match(html, /123/)
-    assert.match(html, /Visit Trend/)
+    assert.match(html, /Visitor trend/)
     assert.match(html, /Visit-Counter/)
   }
   assert.equal(db.value(newKey + ':total'), 123)
