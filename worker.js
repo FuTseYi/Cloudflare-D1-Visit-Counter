@@ -963,7 +963,7 @@ function renderGeneratorPage() {
         </div>
         <div class="usage-note" role="note">
           <strong>This is a showcase, not a free badge-hosting service.</strong>
-          This page is a public preview of a privately operated Worker. Visitors cannot create counters, generate working badge links, or use the owner's D1 storage here. To issue real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.
+          This page is a public preview of a privately operated Worker. Visitors cannot create counters, generate working badge links, or use the owner's D1 storage here. To issue real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.<span lang="zh-CN" style="display:block;margin-top:7px;">本站仅用于开源项目展示，不提供免费徽章生成或后台托管服务。请在自己的 Cloudflare 账号中部署后使用。</span>
         </div>
       </div>
       <aside class="sample-card" aria-label="Illustrative badge design demo">
