@@ -25,6 +25,16 @@ GET /api/combined?path={counterKey}&label={badgeLabel}&labelColor=%23A4D3EE&coun
 | `style` | - | Optional style override: `flat`, `flat-square`, `plastic`, `for-the-badge`, `social`. |
 | `labelStyle` | - | Optional type override: `default` for `today / total`, `none` for `total only`. |
 
+## UI Routes and Languages
+
+```url
+GET /
+GET /admin
+GET /status?path={counterKey}&lang=zh
+```
+
+These routes are different from the management API. The homepage is a static, unauthenticated project showcase; it does not allow visitors to use the owner's database to create counters. The `/admin` screen is reachable but shows no stored counter data until a valid deployment `AUTH_CODE` unlocks it through `POST /api/list`. Language switching supports `en` and `zh` using the `lang` query parameter, with browser language fallback.
+
 ## Status Page
 
 ```url
