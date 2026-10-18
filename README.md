@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/database-Cloudflare%20D1-5A67D8" alt="Cloudflare D1" />
   <img src="https://img.shields.io/badge/output-SVG%20Badge-2ECC71" alt="SVG Badge" />
   <img src="https://img.shields.io/badge/deploy-serverless-24292F" alt="serverless" />
+  <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter/releases/latest"><img src="https://img.shields.io/github/v/release/FuTseYi/Cloudflare-D1-Visit-Counter?label=release&amp;color=2da44e" alt="Latest stable release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
 </p>
 
@@ -30,6 +31,7 @@
 - [5 分钟部署🚀](#快速部署)
 - [创建第一个访问徽章](#看板功能)
 - [复制 Markdown / HTML / Image URL](#使用示例)
+- [查看版本更新](CHANGELOG.md)
 - [查看完整 API](docs/API.md)
 - [了解安全与隐私](docs/SECURITY.md)
 
