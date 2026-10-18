@@ -14,8 +14,8 @@
 </p>
 
 <p align="center">
-  <a href="https://visit.futseyi.com/status?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter">
-    <img src="https://visit.futseyi.com/api/combined?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter" alt="Cloudflare-D1-Visit-Counter visitors" />
+  <a href="https://visit-counter.futseyi.workers.dev/status?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter">
+    <img src="https://visit-counter.futseyi.workers.dev/api/combined?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter" alt="Cloudflare-D1-Visit-Counter visitors" />
   </a>
 </p>
 
@@ -45,9 +45,9 @@ Many visitor badge tools only solve one thing: showing a count. They often rely 
 | ----------------------------- | -------------------------------------------------------------------------------------------- |
 | Fully yours                   | Use your own Cloudflare Worker, D1 database, domain, and data table.                         |
 | Deploy once, use everywhere   | One Worker can serve multiple README files, websites, blogs, docs, and project pages.        |
-| Password-protected management | `AUTH_CODE` protects create, list, and delete operations, so only you can maintain counters. |
+| Password-protected management | `AUTH_CODE` protects create, list, rename, and delete operations, so only you can maintain counters. |
 | Abuse control                 | Public badge URLs cannot create counters automatically.                                      |
-| Unified dashboard             | Create, preview, load, reuse, and delete counters for different pages in one place.          |
+| Unified dashboard             | Create, preview, edit keys and styles, load, reuse, and delete counters for different pages in one place.          |
 | Status page                   | Every counter gets a public status page and trend chart.                                     |
 | Saved styles                  | Badge label, colors, style, and type are stored in D1.                                       |
 | Flexible keys                 | Counter keys can be URLs, repository paths, page names, or Chinese text.                     |
@@ -141,25 +141,27 @@ After editing, click **Deploy** to publish the Worker.
   <img src="docs/images/deploy-09-deploy-worker.png" alt="Deploy the Cloudflare Worker" width="860" />
 </p>
 
-### 5. Bind a custom domain
+### 5. Use workers.dev or a custom domain
 
-Add a custom domain to the Worker and make sure it exactly matches `ALLOWED_DOMAIN` in `worker.js`.
+A custom domain is optional: you can use the permanent `*.workers.dev` hostname supplied by Cloudflare, such as `visit-counter.example.workers.dev`, without purchasing a domain. You can also bind your own custom domain. In either case, set `ALLOWED_DOMAIN` to the exact hostname serving the Worker.
 
 <p align="center">
   <img src="docs/images/deploy-10-add-custom-domain.png" alt="Add a custom domain for the Worker" width="860" />
 </p>
 
-Deployment is now complete. Open your domain to enter the dashboard:
+Deployment is now complete. Open your configured workers.dev or custom domain to enter the dashboard:
 
 ```url
 https://your.domain.com/
 ```
 
-Enter `AUTH_CODE`, then create a counter, preview the badge, and copy Markdown / HTML / Image URL into your README or website.
+Open the private workspace, enter `AUTH_CODE`, then create a counter, preview the badge, and copy Markdown / HTML / Image URL into your README or website.
 
 ## Dashboard
 
-The dashboard creates counters, previews badges, generates embed links, and manages existing counters.
+The dashboard creates counters, previews badges, generates embed links, and manages existing counters. The public landing page is **a showcase only, not a free badge-hosting service**. Visitors cannot create working badges using the owner's D1 database: deploy the repository to your own Cloudflare account and set your own `AUTH_CODE`.
+
+Inside the private workspace, **Use** loads an existing badge; **Edit** lets you change its style or migrate its URL / counter key while retaining the total count, daily history and badge config. Existing badge URLs using the old **counter key** are compatible via an alias, but a change to the Worker's **hostname** still requires updating that hostname in your embeds. Old keys remain reserved as aliases until the counter is deleted. Renaming back to your own old key is supported.
 
 | Field            | Description                                                  |
 | ---------------- | ------------------------------------------------------------ |
