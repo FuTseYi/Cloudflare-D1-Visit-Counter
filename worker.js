@@ -900,12 +900,13 @@ function renderLandingPage(request) {
 }
 
 function renderGeneratorPage(request) {
+  const lang=uiLang(request), t=(en,zh)=>lang==='zh'?zh:en
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${lang==='zh'?'zh-CN':'en'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Visit Counter</title>
+  <title>${t("Private dashboard","私有管理后台")} · Cloudflare D1 Visit Counter</title>
   <link rel="icon" type="image/svg+xml" href="${FAVICON_HREF}">
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -1039,60 +1040,104 @@ function renderGeneratorPage(request) {
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .powered-title { font-size: 32px; } .counter-item { grid-template-columns: auto minmax(0, 1fr); } .counter-item button { width: 100%; } .field-title { align-items: flex-start; flex-direction: column; gap: 2px; } .field-note { text-align: left; } }
+
+    /* Dashboard: dedicated owner workspace with persistent navigation. */
+    ${UI_CSS}
+    body { background:#f5f7fb; }
+    main {max-width:none;margin:0;padding:0}
+    .admin-layout{max-width:1360px;margin:auto;display:grid;grid-template-columns:242px minmax(0,1fr);gap:28px;padding:25px 26px 70px}
+    .admin-aside{border:1px solid #e0e6f0;border-radius:18px;background:#fff;padding:22px;align-self:start;position:sticky;top:22px}
+    .aside-eyebrow{color:#93a0b4;font-size:10px;letter-spacing:.12em;font-weight:800;margin:0 0 18px}
+    .aside-link{display:flex;align-items:center;gap:11px;border-radius:10px;color:#6c7c95;padding:12px 14px;font-size:13px;font-weight:700;margin:3px 0}
+    .aside-link:hover,.aside-link.active{background:#eaf1ff;color:#2563eb}
+    .aside-link .side-icon{font-size:18px;width:20px;text-align:center}
+    .aside-note{padding:15px;margin-top:28px;background:#f0f5fd;border-radius:12px;color:#60738e;font-size:12px;line-height:1.65}
+    .aside-note strong{color:#3868c6;display:block;margin-bottom:5px}
+    .admin-main{min-width:0}
+    .admin-head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin:5px 0 24px}
+    .admin-head h1{font-size:clamp(28px,3.5vw,38px);letter-spacing:-.04em;margin:6px 0 8px}
+    .admin-head p{color:#8190a5;font-size:13px;margin:0;line-height:1.55}
+    .private-tag{white-space:nowrap;color:#326bd5;background:#e7f0ff;border:1px solid #d1e1ff;padding:9px 12px;border-radius:30px;font-weight:750;font-size:11px}
+    .gate{padding:26px 28px;margin-bottom:22px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:18px}
+    .gate-header{grid-column:1/-1}.gate-header h2{margin:0 0 6px;font-size:18px}.gate-header p{font-size:12px;color:#7d8da4;line-height:1.6;margin:0}
+    .gate label{max-width:460px}.gate #authCode{width:100%;background:#f9fbfe}
+    .gate button{white-space:nowrap;height:42px}
+    .stats-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}
+    .stat-tile{padding:23px;border-radius:15px;background:#fff;border:1px solid #e1e8f3}
+    .stat-tile span{display:block;font-size:12px;color:#8190a5;font-weight:650}
+    .stat-tile strong{display:block;margin-top:7px;font-size:32px;letter-spacing:-.05em;color:#1f3150}
+    .admin-workgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-bottom:18px;align-items:start}
+    .admin-main .panel{margin:0;padding:24px;border-radius:16px;box-shadow:none;border:1px solid #e0e7f1;background:#fff;min-width:0}
+    .admin-main .panel h2{font-size:18px;letter-spacing:-.025em;margin:0 0 15px}
+    .admin-main .panel-title{color:#7789a0;font-size:12px;margin:-8px 0 20px;line-height:1.6}
+    .admin-main label{color:#52627a;font-weight:700;font-size:12px}
+    .admin-main input,.admin-main select{border:1px solid #dce4f0;background:#f9fbfe;border-radius:9px;min-height:43px;width:100%;color:#193050}
+    .admin-main input:focus,.admin-main select:focus{border-color:#7ea8f5;outline:3px solid #dfeafe}
+    .admin-main .grid{grid-template-columns:1fr 1fr}
+    .admin-main .color-row{gap:12px}
+    .admin-main .color-button{border-radius:9px;width:100%;min-height:43px}
+    .admin-main button{border-radius:9px}
+    .admin-main .actions{margin-top:22px}
+    .admin-main .actions button{flex:1}
+    .admin-main .copy-btn{background:#ebf1fb;border:1px solid #d7e3f6;color:#2758b4}
+    .admin-main .copy-btn:hover{background:#dae8ff}
+    .admin-main .secondary-btn{background:#f1f5fb;color:#34506d;border:1px solid #dae2ef}
+    .admin-main .danger-btn{background:#fff1f0;color:#bf3340;border:1px solid #ffd0d1}
+    .admin-main code{border:1px solid #e3e9f4;background:#f8fafd;border-radius:9px;font-size:12px;line-height:1.65;white-space:pre-wrap}
+    .admin-main .counter-item{background:#fff;grid-template-columns:auto minmax(0,1fr) repeat(3,auto);border-color:#e3e9f2;border-radius:12px;padding:14px}
+    .admin-main .counter-item button{font-size:12px;padding:8px 12px;min-height:35px}
+    .admin-main .counter-name{font-size:13px;color:#213653}
+    .admin-main .counter-total{font-size:12px}
+    .admin-main .output-row{margin-bottom:15px}
+    .admin-main .mode-row{margin-bottom:14px}
+    .admin-main .preview{flex-wrap:wrap;gap:10px}
+    .admin-main .hint{line-height:1.65}
+    .owner-tip{font-size:12px;color:#6e829c;border-left:3px solid #719af0;padding:10px 13px;background:#f2f6ff;border-radius:0 8px 8px 0;margin-bottom:20px}
+    #counterListPanel{margin-top:18px}
+    .admin-main .counter-list{margin-top:18px}
+    .admin-main .counter-toolbar{margin-top:18px}
+    @media(max-width:1030px){.admin-layout{grid-template-columns:1fr}.admin-aside{position:static;display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:12px}.aside-eyebrow,.aside-note{display:none}.aside-link{margin:0}}
+    @media(max-width:720px){.admin-layout{padding:14px 14px 42px;gap:14px}.admin-workgrid,.stats-overview{grid-template-columns:1fr}.gate{grid-template-columns:1fr;padding:18px}.admin-main .panel{padding:18px}.admin-head{align-items:start;flex-direction:column}.admin-main .counter-item{grid-template-columns:auto minmax(0,1fr)}}
   </style>
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <main>
-    <header class="site-head">
-      <div class="site-brand">${PROJECT_LOGO_SVG}<div>Cloudflare D1 Visit Counter<small>Open-source · Self-hosted visitor badges</small></div></div>
-      <a class="site-link" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
-    </header>
-    <section class="landing" aria-labelledby="introTitle">
-      <div>
-        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Open source · Bring your own Cloudflare</span>
-        <h1 id="introTitle">Visitor badges.<br><span>Your infrastructure.</span></h1>
-        <p class="lead">Create your own GitHub README and website visit counters, with customizable SVG badges, a history dashboard, and statistics stored in your Cloudflare D1 database.</p>
-        <div class="cta-row">
-          <a class="cta cta-primary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter#快速部署" target="_blank" rel="noopener noreferrer">Deploy your own instance ↗</a>
-          <a class="cta cta-secondary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Explore source code</a>
-        </div>
-        <div class="usage-note" role="note">
-          <strong>This is a showcase, not a free badge-hosting service.</strong>
-          This page is a public preview of a privately operated Worker. Visitors cannot create counters, generate working badge links, or use the owner's D1 storage here. To issue real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.<span lang="zh-CN" style="display:block;margin-top:7px;">本站仅用于开源项目展示，不提供免费徽章生成或后台托管服务。请在自己的 Cloudflare 账号中部署后使用。</span>
-        </div>
-      </div>
-      <aside class="sample-card" aria-label="Illustrative badge design demo">
-        <div class="sample-label">STYLE EXAMPLE · STATIC DEMO</div>
-        <div class="sample-stage"><div class="sample-badge" id="sampleBadge"><span>Visitors</span><strong>24 / 1,280</strong></div></div>
-        <div class="demo-controls" role="group" aria-label="Try sample badge color">
-          <button type="button" data-demo-theme="blue" aria-pressed="true">Blue</button>
-          <button type="button" data-demo-theme="green" aria-pressed="false">Green</button>
-          <button type="button" data-demo-theme="purple" aria-pressed="false">Purple</button>
-        </div>
-        <p class="demo-caption">Illustrative values only. This interactive style sample makes no API calls, saves no data, and does not create a usable visit counter.</p>
+
+    ${uiHeader(new URL(request.url),lang,'admin')}
+    <div class="admin-layout">
+      <aside class="admin-aside" aria-label="${t('Workspace navigation','工作区导航')}">
+        <div class="aside-eyebrow">${t('WORKSPACE','管理工作区')}</div>
+        <a class="aside-link active" href="#overviewPanel"><span class="side-icon">◫</span>${t('Overview','概览')}</a>
+        <a class="aside-link" href="#editorPanel"><span class="side-icon">✎</span>${t('Badge editor','徽章编辑')}</a>
+        <a class="aside-link" href="#counterListPanel"><span class="side-icon">▦</span>${t('My counters','已有计数器')}</a>
+        <a class="aside-link" href="#embedPanel"><span class="side-icon">⌘</span>${t('Embed codes','嵌入代码')}</a>
+        <div class="aside-note"><strong>${t('Private workspace','私有管理空间')}</strong>${t('Your Auth Code is required. Visitors must deploy their own instance to create badges.','所有管理操作都需要 Auth Code。访客需自行部署才能创建徽章。')}</div>
       </aside>
-    </section>
-    <section class="steps" id="get-started" aria-labelledby="stepsTitle">
-      <h2 class="section-head" id="stepsTitle">Your own counter in three steps</h2>
-      <div class="step-grid">
-        <div class="step"><span class="step-num">01</span><h3>Get the code</h3><p>Open the <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub repository</a> and copy <code>worker.js</code>.</p></div>
-        <div class="step"><span class="step-num">02</span><h3>Create a D1 database</h3><p>Initialize the counters table in your Cloudflare account and bind it as <code>HITS</code>.</p></div>
-        <div class="step"><span class="step-num">03</span><h3>Deploy &amp; generate</h3><p>Set <code>ALLOWED_DOMAIN</code> and <code>AUTH_CODE</code>, deploy your Worker, then create badges on your own URL.</p></div>
-      </div>
-    </section>
-    <details id="ownerDashboard" class="workspace-details">
-      <summary>Private management workspace <small>For the owner of this deployment only. Auth Code required for creating, editing, listing and deleting counters.</small></summary>
-      <p class="owner-hint">This dashboard manages only the counters stored in the connected D1 database. Public visitors should deploy their own instance instead.</p>
-    <section class="panel">
+      <main class="admin-main">
+        <div class="admin-head"><div><span class="eyebrow">${t('OWNER CONSOLE','站长控制台')}</span><h1>${t('Counter dashboard','计数器管理后台')}</h1><p>${t('Create, customize and maintain your badges from one place.','在一个工作区中创建、编辑和维护所有访问量徽章。')}</p></div><span class="private-tag">● ${t('Private · Auth required','私有 · 需要验证')}</span></div>
+        <section class="surface gate" id="authGate"><div class="gate-header"><h2>${t('Unlock your workspace','解锁管理工作区')}</h2><p>${t('Use the Auth Code configured when you deployed your own Worker. Credentials are never stored in the browser.','输入部署 Worker 时设置的 Auth Code。管理密码不会保存在浏览器中。')}</p></div>
+          <label>${t('Auth Code','管理密码')}<input id="authCode" type="password" autocomplete="off" placeholder="${t('Enter deployment Auth Code','输入部署时设置的管理密码')}"></label>
+          <button id="loadCounters" type="button">${t('Unlock & load','解锁并加载')} →</button>
+        </section>
+        <div id="workspaceContent" hidden>
+          <section id="overviewPanel" class="stats-overview" aria-label="${t('Counters summary','计数器汇总')}">
+            <div class="stat-tile"><span>${t('Total counters','计数器总数')}</span><strong id="counterCount">0</strong></div>
+            <div class="stat-tile"><span>${t('Total visits','累计访问量')}</span><strong id="visitCount">0</strong></div>
+            <div class="stat-tile"><span>${t('Visits today','今日访问量')}</span><strong id="todayCount">0</strong></div>
+          </section>
+          <div class="admin-workgrid">
+    <section class="panel" id="editorPanel">
+      <h2>${t('Create or edit badge','创建与编辑徽章')}</h2>
+      <p class="panel-title">${t('Configure a counter and preview how it will look.','配置计数器，并实时预览徽章样式。')}</p>
       <div class="grid">
         <label style="grid-column: 1 / -1;">Auth Code<input id="authCode" type="password" placeholder="Deploy your own Worker and configure AUTH_CODE in worker.js to unlock all features"></label>
-        <label><span class="field-title"><span>URL</span><span class="field-note">Custom public key is also supported</span></span><input id="source"></label>
-        <label><span class="field-title"><span>Badge Label</span><span class="field-note"></span></span><input id="label"></label>
+        <label><span class="field-title"><span>${t('Counter URL / key','计数器地址 / Key')}</span><span class="field-note">${t('Supports full URLs and custom keys','支持完整 URL 和自定义 Key')}</span></span><input id="source"></label>
+        <label><span class="field-title"><span>${t('Badge label','徽章标签')}</span><span class="field-note"></span></span><input id="label"></label>
         <div class="color-row">
         <div class="color-field" data-color-field="labelColor">
-          <span>Label Background</span>
-          <button class="color-button" type="button" id="labelColorButton">Click to change</button>
+          <span>${t('Label color','标签颜色')}</span>
+          <button class="color-button" type="button" id="labelColorButton">${t('Choose color','选择颜色')}</button>
           <div class="color-popover" id="labelColorPanel">
             <div class="color-large" id="labelColorLarge">#A4D3EE</div>
             <div class="palette" id="labelColorPalette"></div>
@@ -1100,8 +1145,8 @@ function renderGeneratorPage(request) {
           </div>
         </div>
         <div class="color-field" data-color-field="countColor">
-          <span>Count Background</span>
-          <button class="color-button" type="button" id="countColorButton">Click to change</button>
+          <span>${t('Count color','计数颜色')}</span>
+          <button class="color-button" type="button" id="countColorButton">${t('Choose color','选择颜色')}</button>
           <div class="color-popover" id="countColorPanel">
             <div class="color-large" id="countColorLarge">#555555</div>
             <div class="palette" id="countColorPalette"></div>
@@ -1109,7 +1154,7 @@ function renderGeneratorPage(request) {
           </div>
         </div>
         </div>
-        <label>Badge Style
+        <label>${t('Badge style','徽章样式')}
           <select id="style">
             <option value="flat">flat</option>
             <option value="flat-square">flat-square</option>
@@ -1118,49 +1163,49 @@ function renderGeneratorPage(request) {
             <option value="social">social</option>
           </select>
         </label>
-        <label>Badge Type
+        <label>${t('Badge type','徽章类型')}
           <select id="labelStyle">
-            <option value="default">today / total</option>
-            <option value="none">total only</option>
+            <option value="default">${t('today / total','今日 / 累计')}</option>
+            <option value="none">${t('total only','仅累计')}</option>
           </select>
         </label>
       </div>
-      <p class="hint">URL is the saved counter key; Badge Label changes only the visible text. To move an existing counter and keep its visits, choose Edit below.</p>
-      <p class="edit-banner" id="editNotice" hidden aria-live="polite">Editing an existing counter. Change the URL to migrate its total visits, history and badge style; old badge links will keep working.</p>
+      <p class="hint">${t('The URL identifies stored data; the badge label changes only the display. Choose Edit below to migrate an existing URL without losing counts.','URL 是统计数据的唯一标识；Badge Label 只改变显示文字。通过下方编辑操作可以迁移 URL 并保留访问量。')}</p>
+      <p class="edit-banner" id="editNotice" hidden aria-live="polite">${t('Editing an existing counter. Changing its URL migrates total visits, daily history and styling while keeping old key links compatible.','正在编辑已有计数器。修改 URL 会保留累计量、历史趋势与徽章样式，旧 Key 链接继续兼容。')}</p>
       <div class="actions">
-        <button id="create">Create Counter</button><button id="saveCounter" type="button" hidden>Save Changes</button><button id="cancelEdit" type="button" class="secondary-btn" hidden>Cancel Edit</button><button id="loadCounters" class="secondary-btn" type="button">Load Created Counters</button>
-        <div class="preview"><img id="badgePreview" alt=""><a id="statusLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; margin-left:12px; color:#0969da; font-weight:700;">Open status page</a></div>
+        <button id="create">${t('Create counter','创建计数器')}</button><button id="saveCounter" type="button" hidden>${t('Save changes','保存修改')}</button><button id="cancelEdit" type="button" class="secondary-btn" hidden>${t('Cancel','取消')}</button>
+        <div class="preview"><img id="badgePreview" alt=""><a id="statusLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; margin-left:12px; color:#0969da; font-weight:700;">${t('View analytics','查看统计')}</a></div>
       </div>
     </section>
-    <section class="panel">
-      <div class="mode-row"><span class="mode-label">Output style</span><div class="segmented"><button id="savedMode" class="active" type="button">Saved style</button><button id="customMode" type="button">Custom URL</button></div></div>
-      <p>Markdown (badge only)</p><div class="output-row"><code id="markdownCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownCode">Copy</button></div>
-      <p>Markdown (with status)</p><div class="output-row"><code id="markdownLinkCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownLinkCode">Copy</button></div>
-      <p>HTML (with status)</p><div class="output-row"><code id="htmlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="htmlCode">Copy</button></div>
-      <p>Image URL (badge only)</p><div class="output-row"><code id="imageUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="imageUrlCode">Copy</button></div><p>Status page (status only)</p><div class="output-row"><code id="statusUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="statusUrlCode">Copy</button></div>
+    <section class="panel" id="embedPanel">
+      <h2>${t('Embed & share','嵌入与分享')}</h2><p class="panel-title">${t('Copy the generated Markdown or HTML after saving your counter.','保存计数器后，即可复制 Markdown 或 HTML 嵌入代码。')}</p>
+      <div class="mode-row"><span class="mode-label">${t('Link mode','链接模式')}</span><div class="segmented"><button id="savedMode" class="active" type="button">${t('Saved style','保存的样式')}</button><button id="customMode" type="button">${t('Custom URL','自定义链接')}</button></div></div>
+      <p>${t('Markdown · badge','Markdown · 徽章')}</p><div class="output-row"><code id="markdownCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownCode">${t('Copy','复制')}</button></div>
+      <p>${t('Markdown · linked to analytics','Markdown · 链接到统计')}</p><div class="output-row"><code id="markdownLinkCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownLinkCode">${t('Copy','复制')}</button></div>
+      <p>${t('HTML · linked to analytics','HTML · 链接到统计')}</p><div class="output-row"><code id="htmlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="htmlCode">${t('Copy','复制')}</button></div>
+      <p>${t('Image URL','徽章图片链接')}</p><div class="output-row"><code id="imageUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="imageUrlCode">${t('Copy','复制')}</button></div><p>${t('Analytics URL','统计详情链接')}</p><div class="output-row"><code id="statusUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="statusUrlCode">${t('Copy','复制')}</button></div>
     </section>
-    <section class="panel">
-      <h2>Created Counters</h2>
-      <p class="hint">Select Use to copy an existing link, or Edit to update its URL and style without resetting statistics. Delete permanently removes its data. All actions require the owner's Auth Code.</p>
-      <div class="counter-toolbar"><button id="selectAllCounters" class="secondary-btn" type="button">Select All</button><button id="deleteSelectedCounters" class="danger-btn" type="button">Delete Selected</button></div>
-      <div id="counterList" class="counter-list"><span class="empty">No counters loaded.</span></div>
+          </div>
+    <section class="panel" id="counterListPanel">
+      <h2>${t('Created counters','已创建的计数器')}</h2>
+      <p class="hint">${t('Use loads saved links; Edit changes the key and style while preserving counts. Deletion is permanent. All actions require authorization.','使用可加载已有链接；编辑可调整地址与样式并保留统计；删除不可恢复。所有管理操作都需要验证。')}</p>
+      <div class="counter-toolbar"><button id="selectAllCounters" class="secondary-btn" type="button">${t('Select all','全选')}</button><button id="deleteSelectedCounters" class="danger-btn" type="button">${t('Delete selected','删除选中')}</button></div>
+      <div id="counterList" class="counter-list"><span class="empty">${t('Unlock to view your counters.','验证后查看已创建计数器。')}</span></div>
     </section>
-    </details>
-    <footer class="footer">Open-source software · Bring your own Cloudflare Workers + D1 · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub source &amp; deployment guide ↗</a></footer>
+        </div>
+      </main>
+    </div>
+    <footer class="site-footer">Cloudflare D1 Visit Counter · ${t('Private self-hosted workspace','私有自托管工作区')} · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">GitHub ↗</a></footer>
   </main>
   <script>
+    const LANG = '${lang}'
+    const tr = (en,zh) => LANG === 'zh' ? zh : en
     const domain = location.host
     const $ = id => document.getElementById(id)
     let createdCounter = ''
     let currentCounts = { daily: 0, total: 0 }
     let outputMode = 'saved'
     let editingCounter = ''
-    for (const button of document.querySelectorAll('[data-demo-theme]')) {
-      button.addEventListener('click', () => {
-        $('sampleBadge').className = 'sample-badge' + (button.dataset.demoTheme === 'blue' ? '' : ' ' + button.dataset.demoTheme)
-        for (const other of document.querySelectorAll('[data-demo-theme]')) other.setAttribute('aria-pressed', String(button === other))
-      })
-    }
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -1304,9 +1349,15 @@ function renderGeneratorPage(request) {
       const list = $('counterList')
       list.innerHTML = ''
       if (!counters.length) {
-        list.innerHTML = '<span class="empty">No counters created yet.</span>'
+        list.innerHTML = '<span class="empty">' + tr('No counters created yet.','尚未创建任何计数器。') + '</span>'
+        $('counterCount').textContent='0'
+        $('visitCount').textContent='0'
+        $('todayCount').textContent='0'
         return
       }
+      $('counterCount').textContent = counters.length.toLocaleString()
+      $('visitCount').textContent = counters.reduce((n,v)=>n+(Number(v.total)||0),0).toLocaleString()
+      $('todayCount').textContent = counters.reduce((n,v)=>n+(Number(v.daily)||0),0).toLocaleString()
       for (const item of counters) {
         const row = document.createElement('div')
         row.className = 'counter-item'
@@ -1326,12 +1377,12 @@ function renderGeneratorPage(request) {
         badge.alt = 'Saved badge preview'
         const total = document.createElement('div')
         total.className = 'counter-total'
-        total.textContent = 'Total visits: ' + item.total
+        total.textContent = tr('Total visits: ','累计访问：') + Number(item.total).toLocaleString()
         info.append(name, badge, total)
         const useButton = document.createElement('button')
         useButton.type = 'button'
         useButton.className = 'secondary-btn'
-        useButton.textContent = 'Use'
+        useButton.textContent = tr('Use','使用')
         useButton.addEventListener('click', () => {
           stopEditing()
           createdCounter = item.counter
@@ -1346,7 +1397,7 @@ function renderGeneratorPage(request) {
         const editButton = document.createElement('button')
         editButton.type = 'button'
         editButton.className = 'secondary-btn'
-        editButton.textContent = 'Edit'
+        editButton.textContent = tr('Edit','编辑')
         editButton.addEventListener('click', () => {
           editingCounter = item.counter
           createdCounter = item.counter
@@ -1367,7 +1418,7 @@ function renderGeneratorPage(request) {
         const deleteButton = document.createElement('button')
         deleteButton.type = 'button'
         deleteButton.className = 'danger-btn'
-        deleteButton.textContent = 'Delete'
+        deleteButton.textContent = tr('Delete','删除')
         deleteButton.addEventListener('click', async () => {
           await deleteCounters([item.counter])
         })
@@ -1396,18 +1447,18 @@ function renderGeneratorPage(request) {
       createdCounter = ''
       $('source').value = ''
       clearOutputs()
-      showToast('Edit cancelled')
+      showToast(tr('Edit cancelled','已取消编辑'))
     })
     $('saveCounter').addEventListener('click', async () => {
       const previous = editingCounter
       const next = counterValue()
       const authCode = $('authCode').value.trim()
       if (!previous || !next || !authCode) {
-        alert('A valid URL and Auth Code are required')
+        alert(tr('A valid URL and Auth Code are required','需要有效地址与管理密码'))
         return
       }
       const renamed = next !== previous
-      if (renamed && !confirm('Move this counter to the new URL? Existing visits and old badge links will be preserved.')) return
+      if (renamed && !confirm(tr('Move to the new URL? Visits and old key links will be preserved.','确定迁移到新 URL？访问记录及旧 Key 链接将保留。'))) return
       const save = $('saveCounter')
       save.disabled = true
       try {
@@ -1437,13 +1488,13 @@ function renderGeneratorPage(request) {
     }
     async function deleteCounters(counters) {
       if (!counters.length) {
-        alert('Select at least one counter')
+        alert(tr('Select at least one counter','请至少选择一个计数器'))
         return
       }
-      if (!confirm('Delete selected counter data and status charts?')) return
+      if (!confirm(tr('Delete selected counters and history permanently?','永久删除选中的计数器和历史数据？'))) return
       const authCode = $('authCode').value.trim()
       if (!authCode) {
-        alert('Auth code is required')
+        alert(tr('Auth Code is required','请输入管理密码'))
         return
       }
       for (const counter of counters) {
@@ -1464,7 +1515,7 @@ function renderGeneratorPage(request) {
     async function loadCounters(options = {}) {
       const authCode = $('authCode').value.trim()
       if (!authCode) {
-        alert('Auth code is required')
+        alert(tr('Auth Code is required','请输入管理密码'))
         return
       }
       const res = await fetch('/api/list', {
@@ -1478,18 +1529,19 @@ function renderGeneratorPage(request) {
         return
       }
       renderCounterList(data.counters || [])
-      if (options.notify) showToast('Created counters loaded')
+      $('workspaceContent').hidden = false
+      if (options.notify) showToast(tr('Counters loaded','计数器已加载'))
       if (options.scroll) $('counterList').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     $('create').addEventListener('click', async () => {
       const counter = counterValue()
       const authCode = $('authCode').value.trim()
       if (!counter) {
-        alert('URL is required')
+        alert(tr('Counter URL is required','请输入计数器地址'))
         return
       }
       if (!authCode) {
-        alert('Auth code is required')
+        alert(tr('Auth Code is required','请输入管理密码'))
         return
       }
       const res = await fetch('/api/create', {
@@ -1507,7 +1559,10 @@ function renderGeneratorPage(request) {
       await loadCounters()
       showToast(data.exists ? 'Saved existing counter style' : 'Counter created')
     })
-    $('loadCounters').addEventListener('click', () => loadCounters({ notify: true, scroll: true }))
+    $('loadCounters').addEventListener('click', () => loadCounters({ notify: true, scroll: false }))
+    $('authCode').addEventListener('keydown', event => {
+      if (event.key === 'Enter') loadCounters({ notify: true, scroll: false })
+    })
     function setOutputMode(mode) {
       outputMode = mode
       $('savedMode').classList.toggle('active', mode === 'saved')
@@ -1555,7 +1610,7 @@ function renderGeneratorPage(request) {
         if (!code || output.classList.contains('empty')) return
         await copyText(code)
         const old = button.textContent
-        button.textContent = 'Copied'
+        button.textContent = tr('Copied','已复制')
         setTimeout(() => { button.textContent = old }, 900)
       })
     }
