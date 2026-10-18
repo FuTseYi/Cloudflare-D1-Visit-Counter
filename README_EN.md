@@ -21,7 +21,7 @@
 
 [中文说明](README.md) | English
 
-**Cloudflare-D1-Visit-Counter** is an open-source, self-hosted visitor counter and private badge generator powered by **Cloudflare Workers + Cloudflare D1**. It is not just another public visitor badge service. It runs inside your own Cloudflare account, uses your own domain and D1 database, and lets you create, maintain, and manage multiple counters with a single `AUTH_CODE`.
+**Cloudflare-D1-Visit-Counter** is an open-source, self-hosted visitor counter and private badge generator powered by **Cloudflare Workers + Cloudflare D1**. It is not just another public visitor badge service. It runs inside your own Cloudflare account, uses your own Worker URL and D1 database, and lets you create, maintain, and manage multiple counters with a single `AUTH_CODE`.
 
 Deploy it once, then use it as a multi-purpose **GitHub README visitor badge**, website visitor counter, blog counter, documentation counter, and project page analytics badge. It generates SVG badges, Markdown / HTML / Image URL embeds, public status pages, and history charts while keeping the data under your control.
 
@@ -165,7 +165,7 @@ Inside the private workspace, **Use** loads an existing badge; **Edit** lets you
 
 | Field            | Description                                                  |
 | ---------------- | ------------------------------------------------------------ |
-| Auth Code        | Required for create, load, and delete.                       |
+| Auth Code        | Required for create, load, edit, migrate, and delete.                       |
 | URL              | Real counter key for the badge data and status page.         |
 | Badge Label      | Display text only. It does not change the counter key.       |
 | Label Background | Left-side badge color. Default `#A4D3EE`.                    |
