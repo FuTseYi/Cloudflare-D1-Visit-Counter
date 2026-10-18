@@ -1229,6 +1229,7 @@ function renderGeneratorPage(request) {
     let outputMode = 'saved'
     let editingCounter = ''
     let allCounters = []
+    let activeSection = ''
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -1368,6 +1369,65 @@ function renderGeneratorPage(request) {
       $('statusLink').href = status
       $('statusLink').style.display = 'inline-block'
     }
+
+    const sidebarButtons = Array.from(document.querySelectorAll('[data-workspace-section]'))
+    function activateWorkspaceSection(id, scroll = false) {
+      if ($('workspaceContent').hidden || !$('adminLayout').classList.contains('is-unlocked')) return
+      const target = $(id)
+      if (!target) return
+      activeSection = id
+      for (const button of sidebarButtons) {
+        const current = button.dataset.workspaceSection === id
+        button.classList.toggle('active', current)
+        if (current) button.setAttribute('aria-current', 'location')
+        else button.removeAttribute('aria-current')
+      }
+      if (scroll) target.scrollIntoView({
+        behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      })
+    }
+    function setWorkspaceUnlocked(unlocked) {
+      $('adminLayout').classList.toggle('is-unlocked', unlocked)
+      $('adminAside').hidden = !unlocked
+      $('workspaceContent').hidden = !unlocked
+      $('authGate').hidden = unlocked
+      $('lockDashboard').hidden = !unlocked
+      for (const button of sidebarButtons) {
+        button.disabled = !unlocked
+        button.setAttribute('aria-disabled', String(!unlocked))
+        if (!unlocked) {
+          button.classList.remove('active')
+          button.removeAttribute('aria-current')
+        }
+      }
+      if (!unlocked) activeSection = ''
+    }
+    for (const button of sidebarButtons) {
+      button.addEventListener('click', () => {
+        if (button.disabled) return
+        activateWorkspaceSection(button.dataset.workspaceSection, true)
+      })
+    }
+    let scrollFramePending = false
+    window.addEventListener('scroll', () => {
+      if ($('workspaceContent').hidden || scrollFramePending) return
+      scrollFramePending = true
+      requestAnimationFrame(() => {
+        scrollFramePending = false
+        if ($('workspaceContent').hidden) return
+        const bottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 10
+        let id = sidebarButtons[0]?.dataset.workspaceSection
+        if (bottom) id = 'counterListPanel'
+        else {
+          for (const button of sidebarButtons) {
+            const target = $(button.dataset.workspaceSection)
+            if (target && target.getBoundingClientRect().top <= 160) id = button.dataset.workspaceSection
+          }
+        }
+        if (id) activateWorkspaceSection(id)
+      })
+    }, { passive: true })
     function renderCounterList(counters) {
       const list = $('counterList')
       list.innerHTML = ''
@@ -1425,6 +1485,7 @@ function renderGeneratorPage(request) {
           setPickerColor('labelColor', config.labelColor || '#A4D3EE')
           setPickerColor('countColor', config.countColor || '#555555')
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
+          activateWorkspaceSection('embedPanel', true)
         })
         const editButton = document.createElement('button')
         editButton.type = 'button'
@@ -1444,8 +1505,8 @@ function renderGeneratorPage(request) {
           $('saveCounter').hidden = false
           $('cancelEdit').hidden = false
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
-          $('source').focus()
-          $('source').scrollIntoView({ behavior: 'smooth', block: 'center' })
+          activateWorkspaceSection('editorPanel', true)
+          $('source').focus({ preventScroll: true })
         })
         const deleteButton = document.createElement('button')
         deleteButton.type = 'button'
@@ -1547,25 +1608,48 @@ function renderGeneratorPage(request) {
     async function loadCounters(options = {}) {
       const authCode = $('authCode').value.trim()
       if (!authCode) {
-        alert(tr('Auth Code is required','请输入管理密码'))
-        return
+        $('authMessage').textContent = tr('Enter your Auth Code to continue.','请输入管理密码后继续。')
+        $('authCode').focus()
+        return false
       }
-      const res = await fetch('/api/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authCode })
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        alert(data.error || 'Load failed')
-        return
+      const wasUnlocked = !$('workspaceContent').hidden
+      const unlock = $('loadCounters')
+      unlock.disabled = true
+      $('authMessage').textContent = ''
+      try {
+        const res = await fetch('/api/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authCode })
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          const message = res.status === 403
+            ? tr('Incorrect Auth Code. Please try again.','管理密码错误，请重试。')
+            : (data.error || tr('Unable to load counters.','无法加载计数器。'))
+          if (!wasUnlocked) {
+            $('authMessage').textContent = message
+            $('authCode').setAttribute('aria-invalid','true')
+          } else showToast(message)
+          return false
+        }
+        allCounters = data.counters || []
+        renderCounterList(allCounters)
+        setWorkspaceUnlocked(true)
+        $('authCode').removeAttribute('aria-invalid')
+        if (!wasUnlocked) activateWorkspaceSection('overviewPanel')
+        else if (activeSection) activateWorkspaceSection(activeSection)
+        if (options.notify) showToast(tr('Workspace unlocked','管理工作区已解锁'))
+        if (options.scroll) activateWorkspaceSection('counterListPanel', true)
+        return true
+      } catch {
+        const message = tr('Network error. Please try again.','网络错误，请重试。')
+        if (!wasUnlocked) $('authMessage').textContent = message
+        else showToast(message)
+        return false
+      } finally {
+        unlock.disabled = false
       }
-      allCounters = data.counters || []
-      renderCounterList(allCounters)
-      $('workspaceContent').hidden = false
-      $('lockDashboard').hidden = false
-      if (options.notify) showToast(tr('Counters loaded','计数器已加载'))
-      if (options.scroll) $('counterList').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     $('create').addEventListener('click', async () => {
       const counter = counterValue()
@@ -1597,16 +1681,24 @@ function renderGeneratorPage(request) {
     $('counterSearch').addEventListener('input', () => renderCounterList(allCounters))
     $('sortCounters').addEventListener('change', () => renderCounterList(allCounters))
     $('lockDashboard').addEventListener('click', () => {
+      setWorkspaceUnlocked(false)
       $('authCode').value = ''
-      $('workspaceContent').hidden = true
-      $('lockDashboard').hidden = true
+      $('authCode').removeAttribute('aria-invalid')
+      $('authMessage').textContent = ''
+      $('source').value = ''
+      $('label').value = ''
+      $('counterSearch').value = ''
       allCounters = []
       createdCounter = ''
+      currentCounts = { daily: 0, total: 0 }
       stopEditing()
       clearOutputs()
       $('counterList').replaceChildren()
+      for (const id of ['counterCount','visitCount','todayCount']) $(id).textContent = '0'
+      $('authCode').focus()
       showToast(tr('Workspace locked','工作区已锁定'))
     })
+    $('authCode').addEventListener('input', () => { $('authMessage').textContent = ''; $('authCode').removeAttribute('aria-invalid') })
     $('authCode').addEventListener('keydown', event => {
       if (event.key === 'Enter') loadCounters({ notify: true, scroll: false })
     })
