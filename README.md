@@ -14,8 +14,8 @@
 </p>
 
 <p align="center">
-  <a href="https://visit.futseyi.com/status?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter">
-    <img src="https://visit.futseyi.com/api/combined?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter" alt="Cloudflare-D1-Visit-Counter visitors" />
+  <a href="https://visit-counter.futseyi.workers.dev/status?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter">
+    <img src="https://visit-counter.futseyi.workers.dev/api/combined?path=https%3A%2F%2Fgithub.com%2FFuTseYi%2FCloudflare-D1-Visit-Counter" alt="Cloudflare-D1-Visit-Counter visitors" />
   </a>
 </p>
 
