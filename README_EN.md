@@ -157,6 +157,20 @@ https://your.domain.com/
 
 Open the private workspace, enter `AUTH_CODE`, then create a counter, preview the badge, and copy Markdown / HTML / Image URL into your README or website.
 
+## Interface and language
+
+The application now separates the public project showcase, the private owner console and the public analytics report:
+
+| Page | Route | Purpose |
+| --- | --- | --- |
+| Showcase | `/` | Self-hosting overview, static client-side badge sample and deployment guide. **No free hosted counter creation.** |
+| Owner dashboard | `/admin` | Requires your deployment's `AUTH_CODE` to unlock counters, editing tools and embed codes. |
+| Analytics | `/status?path={counterKey}` | Public read-only report with totals, seven-day count, daily average and switchable visit trend. |
+
+Use the **EN / 中文** switch on each page, or explicitly specify `?lang=en` / `?lang=zh` (append `&lang=` on analytics URLs). Without a query override, the interface follows the browser's `Accept-Language`. Language switching preserves the analytics counter key.
+
+The public color-preview demo is rendered in the browser with illustrative numbers; it never creates counters or queries the owner's D1 database.
+
 ## Dashboard
 
 The dashboard creates counters, previews badges, generates embed links, and manages existing counters. The public landing page is **a showcase only, not a free badge-hosting service**. Visitors cannot create working badges using the owner's D1 database: deploy the repository to your own Cloudflare account and set your own `AUTH_CODE`.
