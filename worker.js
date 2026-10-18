@@ -57,10 +57,6 @@ async function handleRequest(request, db) {
     return handleDeleteCounter(request, db)
   }
 
-  if (url.pathname === '/api/preview') {
-    return handlePreviewBadge(url)
-  }
-
   if (url.pathname === '/api/combined') {
     return handleVisitorBadge(url, db)
   }
@@ -400,22 +396,8 @@ async function handleCounterRequest(url, db, counter, isSvg) {
   })
 }
 
-function handlePreviewBadge(url) {
-  const daily = clampInt(url.searchParams.get('daily'), 0, 0, 999999999)
-  const total = clampInt(url.searchParams.get('total'), 0, 0, 999999999)
-  return svgResponse(generateBadgeSvg({
-    title: getParam(url, 'label', 'title') || 'Visitors',
-    titleBg: getParam(url, 'labelColor', 'title_bg') || '#A4D3EE',
-    countBg: getParam(url, 'countColor', 'count_bg') || '#555555',
-    edgeFlat: url.searchParams.get('edge_flat') === 'true',
-    style: url.searchParams.get('style') || 'flat',
-    labelStyle: url.searchParams.get('labelStyle') || 'default',
-    dailyCount: daily,
-    totalCount: total,
-  }), 'public, max-age=60')
-}
 async function handleVisitorBadge(url, db) {
-  const counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
+  let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
     return jsonResponse({ error: 'Missing or invalid path' }, 400)
   }
@@ -1160,18 +1142,36 @@ function renderGeneratorPage() {
       })
       return 'https://' + domain + '/api/combined?' + params.toString()
     }
+    // Render saved / edited badge previews entirely in the browser.
+    // No unauthenticated preview API, D1 query or public badge generator.
     function previewImageUrl(counter, config = {}, counts = {}) {
-      const params = new URLSearchParams({
-        path: counter,
-        label: config.label || $('label').value || 'Visitors',
-        labelColor: config.labelColor || $('labelColor').value || '#A4D3EE',
-        countColor: config.countColor || $('countColor').value || '#555555',
-        style: config.style || $('style').value,
-        labelStyle: config.labelStyle || $('labelStyle').value,
-        daily: String(counts.daily || 0),
-        total: String(counts.total || 0),
-      })
-      return 'https://' + domain + '/api/preview?' + params.toString()
+      const label = String(config.label || $('label').value || 'Visitors').slice(0, 48)
+      const style = config.style || $('style').value || 'flat'
+      const labelStyle = config.labelStyle || $('labelStyle').value || 'default'
+      const leftText = style === 'for-the-badge' ? label.toUpperCase() : label
+      const rightText = labelStyle === 'none'
+        ? String(counts.total || 0)
+        : String(counts.daily || 0) + ' / ' + String(counts.total || 0)
+      const textWidth = value => Math.max(28, 10 + [...value].reduce((sum, char) => sum + (char.charCodeAt(0) > 255 ? 14 : 7), 0))
+      const big = style === 'for-the-badge'
+      const h = big ? 28 : 20
+      const leftWidth = textWidth(leftText) + (big ? 14 : 0)
+      const rightWidth = textWidth(rightText) + (big ? 14 : 0)
+      const w = leftWidth + rightWidth
+      const radius = style === 'flat-square' || big ? 0 : 3
+      const labelBg = style === 'social' ? '#FFFFFF' : normalizeHex(config.labelColor || $('labelColor').value, '#A4D3EE')
+      const countBg = normalizeHex(config.countColor || $('countColor').value, '#555555')
+      const labelFg = style === 'social' ? '#24292F' : readableTextColor(labelBg)
+      const countFg = readableTextColor(countBg)
+      const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img">' +
+        '<defs><clipPath id="clip"><rect width="' + w + '" height="' + h + '" rx="' + radius + '"/></clipPath></defs>' +
+        '<g clip-path="url(#clip)"><rect width="' + leftWidth + '" height="' + h + '" fill="' + labelBg + '"/>' +
+        '<rect x="' + leftWidth + '" width="' + rightWidth + '" height="' + h + '" fill="' + countBg + '"/></g>' +
+        '<g font-family="Verdana,Geneva,sans-serif" font-size="' + (big ? 12 : 11) + '" text-anchor="middle" font-weight="' + (big ? '700' : '400') + '">' +
+        '<text x="' + Math.floor(leftWidth / 2) + '" y="' + (big ? 18 : 14) + '" fill="' + labelFg + '">' + esc(leftText) + '</text>' +
+        '<text x="' + (leftWidth + Math.floor(rightWidth / 2)) + '" y="' + (big ? 18 : 14) + '" fill="' + countFg + '">' + esc(rightText) + '</text></g></svg>'
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
     }
     function statusUrl(counter) {
       return 'https://' + domain + '/status?path=' + encodeURIComponent(counter)
