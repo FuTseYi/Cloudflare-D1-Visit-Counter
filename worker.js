@@ -433,14 +433,15 @@ async function handleVisitorBadge(url, db) {
   }))
 }
 
-async function handleStatusPage(url, db) {
+async function handleStatusPage(url, db, request) {
+  const lang = uiLang(request)
   let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
-    return htmlResponse(renderStatusPage({ error: 'Missing or invalid path' }))
+    return htmlResponse(renderStatusPage({ error: 'Missing or invalid path', lang }))
   }
 
   const canonical = await resolveCounterForRead(db, counter)
-  if (!canonical) return htmlResponse(renderStatusPage({ counter, error: 'Counter not found' }))
+  if (!canonical) return htmlResponse(renderStatusPage({ counter, error: 'Counter not found', lang }))
   counter = canonical
   const today = todayString()
   const total = await getCounterValue(db, `${counter}:total`)
@@ -448,7 +449,7 @@ async function handleStatusPage(url, db) {
   const historyDays = getHistoryDays()
   const days = clampInt(url.searchParams.get('days'), historyDays, 1, historyDays)
   const series = await getDailySeries(db, counter, days)
-  return htmlResponse(renderStatusPage({ counter, total, daily, series }))
+  return htmlResponse(renderStatusPage({ counter, total, daily, series, lang }))
 }
 async function handleHistoryChart(url, db, counter) {
   counter = normalizeCounterName(counter)
@@ -1102,7 +1103,7 @@ function renderGeneratorPage(request) {
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <main>
+  <div id="dashboardRoot">
 
     ${uiHeader(new URL(request.url),lang,'admin')}
     <div class="admin-layout">
@@ -1196,7 +1197,7 @@ function renderGeneratorPage(request) {
       </main>
     </div>
     <footer class="site-footer">Cloudflare D1 Visit Counter · ${t('Private self-hosted workspace','私有自托管工作区')} · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">GitHub ↗</a></footer>
-  </main>
+  </div>
   <script>
     const LANG = '${lang}'
     const tr = (en,zh) => LANG === 'zh' ? zh : en
@@ -1631,63 +1632,91 @@ function getParam(url, ...names) {
   return ''
 }
 
-function renderStatusPage({ counter = '', total = 0, daily = 0, series = [], error = '' }) {
-  const safeCounter = escapeXml(counter || 'status')
-  const historyDays = getHistoryDays()
-  const counts = series.map(item => item.count)
-  const highest = counts.length ? Math.max(...counts) : 0
-  const lowest = counts.length ? Math.min(...counts) : 0
-  const rangeTotal = counts.reduce((sum, count) => sum + count, 0)
-  const averageText = String(Math.round(counts.length ? rangeTotal / counts.length : 0))
-  const chart = error ? '' : generateHistorySvg({
-    title: 'Visit Trend',
-    series,
-    width: 980,
-    height: 430,
-    chartType: 'area',
-    color: '#A4D3EE',
-  })
-  const updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${safeCounter} status</title>
-  <link rel="icon" type="image/svg+xml" href="${FAVICON_HREF}">
-  <style>
-    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f6f8fa; color: #24292f; }
-    main { max-width: 1080px; margin: 0 auto; padding: 42px 18px 44px; }
-    .topline { text-align: center; margin-bottom: 26px; }
-    .status-title-row { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
-    .project-logo { width: 48px; height: 48px; flex: 0 0 auto; display: block; }
-    .project-line { margin-top: 12px; color: #57606a; font-size: 14px; }
-    .project-line strong { color: #24292f; }
-    .project-line a { color: #0969da; font-weight: 750; text-decoration: none; }
-    .project-line a:hover { text-decoration: underline; }
-    h1 { margin: 0; font-size: clamp(30px, 5vw, 46px); letter-spacing: 0; }
-    .overview { margin: 10px 0 0; color: #57606a; font-size: 16px; overflow-wrap: anywhere; }
-    .center { text-align: center; }
-    .eyebrow { color: #57606a; font-weight: 750; }
-    h2 { margin: 10px 0 8px; font-size: clamp(28px, 5vw, 42px); }
-    .sub { margin: 0; color: #6e7781; font-size: 16px; }
-    .panel { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 22px; margin-top: 20px; box-shadow: 0 8px 24px rgba(31, 35, 40, .06); }
-    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-    .stat { background: linear-gradient(180deg, #ffffff, #f6f8fa); border: 1px solid #d0d7de; border-radius: 8px; padding: 18px; }
-    .value { font-size: 36px; font-weight: 850; line-height: 1; }
-    .label { margin-top: 8px; color: #57606a; font-size: 13px; }
-    .chart-wrap { overflow-x: auto; }
-    .error { color: #b42318; font-weight: 700; }
-    @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
-  </style>
-</head>
-<body>
-  <main>
-    ${error ? `<section class="panel error">${escapeXml(error)}</section>` : `<section class="topline"><div class="status-title-row">${PROJECT_LOGO_SVG}<h1>Analytics Overview</h1></div><p class="overview">Overview for</p><div class="target-key">${safeCounter}</div><div class="project-line">Powered by <a class="project-link" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Cloudflare-D1-Visit-Counter</a> · Author: <a class="project-link" href="https://github.com/FuTseYi" target="_blank" rel="noopener noreferrer">FuTseYi</a></div></section><section class="center"><p class="sub">Statistics for available daily data, up to ${historyDays} days · Last generated: ${updatedAt}</p></section><section class="panel stats"><div class="stat"><div class="value">${daily}</div><div class="label">Today</div></div><div class="stat"><div class="value">${total}</div><div class="label">Total visits</div></div><div class="stat"><div class="value">${series.length}</div><div class="label">Days in chart</div></div><div class="stat"><div class="value">${highest}</div><div class="label">Highest daily</div></div><div class="stat"><div class="value">${lowest}</div><div class="label">Lowest daily</div></div><div class="stat"><div class="value">${averageText}</div><div class="label">Average daily</div></div></section><section class="panel"><div class="chart-wrap">${chart}</div></section>`}
-  </main>
-</body>
-</html>`
+
+function renderDashboardChart(series, limit) {
+  const data = series.slice(-Math.max(1,limit))
+  const width=1020,height=360,left=56,right=20,top=20,bottom=55
+  const innerWidth=width-left-right,innerHeight=height-top-bottom
+  const peak=Math.max(1,...data.map(item=>Number(item.count)||0))
+  const topTick=Math.max(4,Math.ceil(peak/4)*4)
+  const coords=data.map((item,i)=>({
+    x:left+(data.length===1?innerWidth/2:i*innerWidth/(data.length-1)),
+    y:top+innerHeight-(Math.max(0,Number(item.count)||0)/topTick)*innerHeight,
+    date:String(item.date),
+    count:Number(item.count)||0
+  }))
+  const line=coords.map((point,i)=>(i?'L':'M')+point.x.toFixed(2)+' '+point.y.toFixed(2)).join(' ')
+  const area=line+' L '+(coords.length?coords[coords.length-1].x:left)+' '+(top+innerHeight)+' L '+(coords.length?coords[0].x:left)+' '+(top+innerHeight)+' Z'
+  const grid=Array.from({length:5},(_,i)=>{
+    const y=top+innerHeight-i*innerHeight/4
+    return '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y+'" y2="'+y+'" stroke="#e7edf7" stroke-dasharray="'+(i?'4 6':'0')+'"/>'+
+      '<text x="'+(left-13)+'" y="'+(y+4)+'" text-anchor="end" font-size="12" fill="#98a6bb">'+Math.round(i*topTick/4)+'</text>'
+  }).join('')
+  const every=Math.max(1,Math.ceil(coords.length/7))
+  const labels=coords.filter((p,i)=>i%every===0||i===coords.length-1).map(p=>
+    '<text x="'+p.x+'" y="'+(height-19)+'" text-anchor="middle" font-size="12" fill="#93a1b5">'+escapeXml(p.date.slice(5))+'</text>'
+  ).join('')
+  const dots=coords.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="4" fill="#fff" stroke="#3273ec" stroke-width="2"><title>'+escapeXml(p.date+': '+p.count)+'</title></circle>').join('')
+  const id='trendGradient'+limit
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Daily visit counts over ${limit} available days" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4b86f2" stop-opacity=".24"/><stop offset="100%" stop-color="#4b86f2" stop-opacity=".012"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="#3273ec" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${labels}</svg>`
+}
+function renderStatusPage({ counter='', total=0, daily=0, series=[], error='', lang='en' }) {
+  const t=(en,zh)=>lang==='zh'?zh:en
+  const target=escapeXml(counter || '')
+  const historyDays=getHistoryDays()
+  const counts=series.map(item=>Math.max(0,Number(item.count)||0))
+  const lastWeek=counts.slice(-7),week=lastWeek.reduce((a,b)=>a+b,0)
+  const peak=counts.length?Math.max(...counts):0
+  const avg=counts.length?(counts.reduce((a,b)=>a+b,0)/counts.length):0
+  const first=series.length?escapeXml(String(series[0].date)):'—'
+  const last=series.length?escapeXml(String(series[series.length-1].date)):'—'
+  const updated=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'
+  const number=value=>Number(value).toLocaleString('en-US')
+  const report=!error
+  return `<!doctype html><html lang="${lang==='zh'?'zh-CN':'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex"><title>${t('Analytics overview','访问统计概览')} · Cloudflare D1 Visit Counter</title><link rel="icon" href="${FAVICON_HREF}">
+    <style>${UI_CSS}
+    .report-hero{padding:36px 38px;background:linear-gradient(125deg,#1e4186,#3374e9);color:white;border-radius:21px;display:flex;align-items:center;justify-content:space-between;gap:25px}
+    .report-hero .eyebrow{color:#b7d1ff}.report-hero h1{font-size:clamp(28px,3.6vw,41px);letter-spacing:-.045em;margin:12px 0}.report-hero .report-sub{font-size:13px;color:#cadcff;line-height:1.7}
+    .target{margin-top:14px;background:#ffffff14;border:1px solid #ffffff2f;border-radius:10px;color:#e4edff;max-width:760px;padding:11px 14px;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+    .live-pill{font-size:11px;white-space:nowrap;background:#ffffff1b;border:1px solid #ffffff38;border-radius:30px;padding:10px 14px;color:#f1f7ff}
+    .report-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin:22px 0}
+    .report-card{padding:25px}.report-card .label{font-size:12px;color:#8493a7;font-weight:650}.report-card .value{font-size:clamp(27px,3vw,39px);color:#1c3155;font-weight:820;letter-spacing:-.055em;margin:12px 0 6px}
+    .report-card .hint{font-size:11px;color:#a0acbd}
+    .report-card.emphasis{background:#edf4ff;border-color:#cbddff}.report-card.emphasis .value{color:#2865dc}
+    .chart-card{padding:27px 30px}.chart-head{display:flex;justify-content:space-between;align-items:start;gap:18px;flex-wrap:wrap;margin-bottom:20px}
+    .chart-head h2{margin:0;font-size:20px;letter-spacing:-.025em}.chart-head p{color:#8c9aaf;font-size:12px;margin:8px 0 0;line-height:1.65}
+    .range-toggle{display:flex;gap:4px;border:1px solid #dfe6f2;background:#f4f7fc;padding:4px;border-radius:11px}
+    .range-toggle button{cursor:pointer;padding:9px 14px;border:0;border-radius:8px;background:transparent;color:#7b899f;font-size:12px;font-weight:750}
+    .range-toggle button[aria-pressed=true]{color:#2f67da;background:white;box-shadow:0 1px 6px #253e6c19}
+    .chart-svg{min-height:210px}.chart-svg svg{display:block;width:100%;max-width:100%}
+    .report-lower{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-top:20px}
+    .small-card{padding:21px 24px}.small-card span{display:block;color:#8a99ad;font-size:12px}.small-card strong{display:block;font-size:21px;color:#274166;margin-top:9px;letter-spacing:-.025em}
+    .report-fineprint{padding:15px 0 2px;font-size:12px;color:#94a1b5;line-height:1.8}
+    .error-page{padding:45px;margin-top:30px}.error-page h1{margin-top:0}.error-page p{color:#7b889d}
+    @media(max-width:950px){.report-stats{grid-template-columns:repeat(2,1fr)}.report-lower{grid-template-columns:1fr}}
+    @media(max-width:600px){.report-hero{padding:28px 23px;flex-direction:column;align-items:start}.report-stats{gap:10px}.report-card{padding:18px}.chart-card{padding:20px 14px}.report-card .value{font-size:28px}}
+    </style></head><body>
+    ${uiHeader(new URL('https://'+ALLOWED_DOMAIN+'/status?path='+encodeURIComponent(counter)+'&lang='+lang),lang,'')}
+    <main class="shell">
+    ${!report ? `<section class="surface error-page"><div class="eyebrow">${t('STATISTICS','访问统计')}</div><h1>${t('Unable to load this counter','无法加载计数器')}</h1><p>${escapeXml(error)}</p><a class="btn-outline" href="/?lang=${lang}">${t('Back to overview','返回首页')} ←</a></section>` :
+     `<section class="report-hero"><div><div class="eyebrow">${t('PUBLIC ANALYTICS','公开统计面板')}</div><h1>${t('Analytics overview','访问统计概览')}</h1>
+     <div class="report-sub">${t('Visit request statistics for the selected counter.','当前计数器的访问请求统计数据。')}</div><div class="target">${target}</div></div><div class="live-pill">● ${t('Public report','公开统计报告')}</div></section>
+     <section class="report-stats" aria-label="${t('Key metrics','核心指标')}">
+       <article class="surface report-card emphasis"><div class="label">${t('Total visits','累计访问量')}</div><div class="value">${number(total)}</div><div class="hint">${t('Since counter creation','从创建计数器开始累计')}</div></article>
+       <article class="surface report-card"><div class="label">${t('Today','今日访问')}</div><div class="value">${number(daily)}</div><div class="hint">${t('UTC calendar day','按 UTC 自然日统计')}</div></article>
+       <article class="surface report-card"><div class="label">${t('Last 7 days','近七日访问')}</div><div class="value">${number(week)}</div><div class="hint">${t('Available retained records','基于保留的历史记录')}</div></article>
+       <article class="surface report-card"><div class="label">${t('Daily average','日均访问')}</div><div class="value">${number(Math.round(avg))}</div><div class="hint">${t('Across displayed history','按当前可用历史记录计算')}</div></article>
+     </section>
+     <section class="surface chart-card"><div class="chart-head"><div><h2>${t('Visitor trend','访问量趋势')}</h2><p>${t('Daily counts · Hover chart points for exact values.','按日统计 · 鼠标悬停数据点可查看数值。')}</p></div><div class="range-toggle" role="group" aria-label="${t('Chart time range','趋势时间范围')}"><button type="button" data-range="7" aria-pressed="false">${t('7 days','7 天')}</button><button type="button" data-range="all" aria-pressed="true">${t('Available history','全部历史')}</button></div></div>
+     <div class="chart-svg" id="chartAll">${renderDashboardChart(series,historyDays)}</div>
+     <div class="chart-svg" id="chart7" hidden>${renderDashboardChart(series,7)}</div></section>
+     <section class="report-lower"><div class="surface small-card"><span>${t('Highest daily visits','单日最高访问')}</span><strong>${number(peak)}</strong></div><div class="surface small-card"><span>${t('Available date range','历史数据区间')}</span><strong style="font-size:15px">${first} — ${last}</strong></div><div class="surface small-card"><span>${t('Data retention','历史数据保留')}</span><strong>${historyDays} ${t('days','天')}</strong></div></section>
+     <div class="report-fineprint">${t('Statistics reflect badge and counter requests, not unique visitors. Daily history is retained for up to','访问量表示徽章或计数接口请求次数，并非独立访客人数。历史明细最多保留')} ${historyDays} ${t('days. Generated','天。页面生成时间：')} ${updated}.</div>`}
+    </main><footer class="site-footer">Cloudflare D1 Visit Counter · <a target="_blank" rel="noopener noreferrer" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">Open source on GitHub ↗</a></footer>
+    <script>for(const b of document.querySelectorAll('[data-range]')) b.addEventListener('click',()=>{const week=b.dataset.range==='7';document.getElementById('chart7').hidden=!week;document.getElementById('chartAll').hidden=week;for(const x of document.querySelectorAll('[data-range]'))x.setAttribute('aria-pressed',String(x===b))})</script></body></html>`
 }
 function isCounterAllowed(counter) {
   return ALLOWED_PATHS.length === 0 || ALLOWED_PATHS.includes(counter)
