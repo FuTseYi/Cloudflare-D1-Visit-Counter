@@ -179,8 +179,11 @@ async function handleRenameCounter(request, db) {
     return jsonResponse({ error: 'Both keys must be included in ALLOWED_PATHS.' }, 403)
   }
   if (!await counterExists(db, previous)) return jsonResponse({ error: 'Original counter not found.' }, 404)
-  if (await counterExists(db, next) || await getCounterAlias(db, next)) {
-    return jsonResponse({ error: 'Target key already exists or belongs to a previous rename.' }, 409)
+  // Moving back to your own previous URL is safe: release that alias inside
+  // the same transaction, then promote the key to the canonical counter.
+  const existingAlias = await getCounterAlias(db, next)
+  if (await counterExists(db, next) || (existingAlias && existingAlias !== previous)) {
+    return jsonResponse({ error: 'Target key already exists or belongs to another counter.' }, 409)
   }
 
   // The existing D1 table stores each counter as a family of suffixed keys.
@@ -214,7 +217,10 @@ async function handleRenameCounter(request, db) {
     .bind(next, previous)
   const alias = db.prepare('INSERT INTO counters (name, count) VALUES (?, ?)')
     .bind(previous + ':meta:alias', next)
-  const operations = [move, repoint, alias]
+  const operations = [
+    ...(existingAlias === previous ? [db.prepare('DELETE FROM counters WHERE name = ?').bind(next + ':meta:alias')] : []),
+    move, repoint, alias
+  ]
   if (body.config !== undefined) {
     operations.push(db.prepare(`
       INSERT INTO counters (name, count) VALUES (?, ?)
@@ -307,8 +313,8 @@ async function handleDeleteCounter(request, db) {
 
   const dailyPrefix = `${counter}:daily:`
   await db.batch([
-    db.prepare('DELETE FROM counters WHERE name = ? OR name = ? OR name = ? OR name = ? OR substr(name, 1, ?) = ?')
-      .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix),
+    db.prepare("DELETE FROM counters WHERE name IN (?, ?, ?, ?) OR (substr(name, 1, ?) = ? AND length(name) = ? AND substr(name, ?) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')")
+      .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix, dailyPrefix.length + 10, dailyPrefix.length + 1),
     db.prepare("DELETE FROM counters WHERE name GLOB '*:meta:alias' AND count = ?").bind(counter),
   ])
 
@@ -842,7 +848,7 @@ function renderGeneratorPage() {
     .secondary-btn { background: #57606a; }
     .counter-list { display: grid; gap: 8px; margin-top: 10px; }
     .counter-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-    .counter-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; background: #f6f8fa; }
+    .counter-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; background: #f6f8fa; }
     .counter-name { overflow-wrap: anywhere; font-weight: 700; }
     .counter-total { color: #57606a; font-size: 12px; margin-top: 6px; }
     .saved-badge-img { display: block; width: max-content; max-width: 100%; height: auto; margin-top: 6px; }
