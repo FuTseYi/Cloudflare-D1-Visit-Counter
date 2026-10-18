@@ -57,6 +57,9 @@ async function handleRequest(request, db) {
     return handleDeleteCounter(request, db)
   }
 
+  // Browser previews are generated locally; never offer public SVG generation.
+  if (url.pathname === '/api/preview') return textResponse('Not Found', 404)
+
   if (url.pathname === '/api/combined') {
     return handleVisitorBadge(url, db)
   }
