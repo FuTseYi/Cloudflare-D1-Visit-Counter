@@ -247,7 +247,7 @@ https://your.domain.com/
 
 | 字段             | 说明                                                          |
 | ---------------- | ------------------------------------------------------------- |
-| Auth Code        | 只有输入正确 Auth Code 才能创建、加载和删除。                 |
+| Auth Code        | 只有输入正确 Auth Code 才能创建、加载、编辑、迁移和删除。                 |
 | URL              | 真实 counter key，可以是 URL、页面名、仓库路径或中文。        |
 | Badge Label      | 徽章显示名，只影响展示文字。                                  |
 | Label Background | 左侧背景色，默认 `#A4D3EE`。                                  |
