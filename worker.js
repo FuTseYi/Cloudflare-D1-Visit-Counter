@@ -433,7 +433,7 @@ async function handleVisitorBadge(url, db) {
   }))
 }
 
-async function handleStatusPage(url, db, request) {
+async function handleStatusPage(url, db, request = { url: url.toString() }) {
   const lang = uiLang(request)
   let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
