@@ -885,13 +885,118 @@ function renderGeneratorPage() {
     .hex-input { width: 100%; box-sizing: border-box; min-height: 30px; font-size: 12px; }
     .toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; background: #24292f; color: #fff; border-radius: 6px; padding: 10px 12px; font-size: 13px; font-weight: 700; box-shadow: 0 10px 24px rgba(31,35,40,.18); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Public landing: informative by default, self-hosting first. */
+    body { background: radial-gradient(ellipse at 12% -8%, #e3efff 0%, transparent 38%), #f6f8fa; }
+    main { max-width: 1120px; }
+    .site-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 34px; }
+    .site-brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+    .site-brand svg { width: 34px; height: 34px; }
+    .site-brand small { display: block; color: #57606a; font-size: 11px; font-weight: 500; letter-spacing: 0; }
+    a { color: #0969da; }
+    .site-link, .cta { display: inline-flex; justify-content: center; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; }
+    .site-link { border: 1px solid #d0d7de; border-radius: 8px; padding: 10px 13px; background: white; font-size: 13px; color: #24292f; }
+    .landing { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .85fr); align-items: center; gap: 34px; padding: 16px 0 28px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #0969da; text-transform: uppercase; font-size: 11px; letter-spacing: .09em; font-weight: 800; }
+    .dot { width: 7px; height: 7px; background: #2da44e; border-radius: 50%; }
+    .landing h1 { font-size: clamp(38px, 5vw, 60px); line-height: 1.08; letter-spacing: -.055em; margin: 18px 0; }
+    .landing h1 span { color: #0969da; }
+    .lead { max-width: 640px; color: #57606a; font-size: 16px; line-height: 1.7; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+    .cta { border-radius: 8px; padding: 13px 17px; font-size: 14px; }
+    .cta-primary { background: #0969da; color: white; }
+    .cta-secondary { border: 1px solid #d0d7de; color: #24292f; background: white; }
+    .usage-note { border-left: 3px solid #bf8700; background: #fff8e6; color: #5f4b15; padding: 12px 15px; border-radius: 0 8px 8px 0; line-height: 1.65; font-size: 13px; }
+    .usage-note strong { display: block; margin-bottom: 3px; }
+    .sample-card { background: #fff; border: 1px solid #d0d7de; border-radius: 16px; padding: 24px; box-shadow: 0 15px 40px rgba(36,41,47,.06); }
+    .sample-label { font-size: 12px; color: #57606a; font-weight: 700; }
+    .sample-stage { display: grid; min-height: 140px; place-items: center; margin: 16px 0; border: 1px dashed #d0d7de; background: #f6f8fa; border-radius: 10px; }
+    .sample-badge { display: inline-flex; overflow: hidden; border-radius: 4px; font-family: Verdana,Geneva,sans-serif; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,.06); }
+    .sample-badge span, .sample-badge strong { padding: 9px 12px; font-weight: 600; }
+    .sample-badge span { background: #dbeafe; color: #1e3a8a; }
+    .sample-badge strong { color: #fff; background: #0969da; }
+    .sample-badge.green span { background: #dcfce7; color: #166534; }
+    .sample-badge.green strong { background: #238636; }
+    .sample-badge.purple span { background: #f3e8ff; color: #6b21a8; }
+    .sample-badge.purple strong { background: #8250df; }
+    .demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .demo-controls button { min-height: 30px; font-size: 12px; padding: 3px 11px; background: #f6f8fa; border: 1px solid #d0d7de; color: #24292f; }
+    .demo-controls button[aria-pressed="true"] { border-color: #0969da; color: #0969da; background: #eef5ff; }
+    .demo-caption { color: #57606a; font-size: 12px; line-height: 1.6; }
+    .steps { margin: 20px 0 32px; }
+    .section-head { margin: 0 0 14px; font-size: 19px; letter-spacing: -.02em; }
+    .step-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+    .step { padding: 18px; background: #fff; border: 1px solid #d0d7de; border-radius: 10px; }
+    .step .step-num { display: inline-grid; place-items: center; background: #eef5ff; color: #0969da; width: 27px; height: 27px; border-radius: 8px; font-size: 12px; font-weight: 800; }
+    .step h3 { margin: 12px 0 7px; font-size: 15px; }
+    .step p { margin: 0; font-size: 13px; }
+    .workspace-details { border: 1px solid #d0d7de; border-radius: 12px; background: rgba(255,255,255,.77); padding: 0 18px 18px; }
+    .workspace-details summary { list-style-position: inside; cursor: pointer; padding: 22px 2px; font-weight: 800; font-size: 17px; }
+    .workspace-details summary small { color: #57606a; font-size: 12px; font-weight: 400; display: block; margin: 7px 0 0 24px; line-height: 1.5; }
+    .workspace-details > .panel { margin-top: 0; margin-bottom: 14px; }
+    .workspace-details > .panel:last-of-type { margin-bottom: 0; }
+    .owner-hint { padding: 9px 11px; background: #eef5ff; border-radius: 7px; color: #345071; font-size: 12px; margin-bottom: 14px; }
+    .edit-banner { background: #eef5ff; border: 1px solid #b6d6fa; border-radius: 7px; padding: 10px 12px; margin: 10px 0; font-size: 13px; }
+    .footer { text-align: center; padding: 30px 8px 8px; font-size: 12px; color: #57606a; }
+    button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #54aeff; outline-offset: 3px; }
+    button[hidden], p[hidden] { display: none; }
+    @media (max-width: 760px) {
+      main { padding: 22px 14px 38px; }
+      .landing { grid-template-columns: minmax(0,1fr); gap: 16px; }
+      .step-grid { grid-template-columns: 1fr; }
+      .site-head { margin-bottom: 14px; }
+      .site-brand { font-size: 13px; }
+      .sample-stage { min-height: 108px; }
+      .workspace-details { padding: 0 12px 12px; }
+      .workspace-details .panel { padding: 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .powered-title { font-size: 32px; } .counter-item { grid-template-columns: auto minmax(0, 1fr); } .counter-item button { width: 100%; } .field-title { align-items: flex-start; flex-direction: column; gap: 2px; } .field-note { text-align: left; } }
   </style>
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <main>
-    <header class="product-head"><div class="brand-title-row">${PROJECT_LOGO_SVG}<div class="powered-title"><span class="powered-prefix">Powered by</span> <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Cloudflare-D1-Visit-Counter</a></div></div></header>
+    <header class="site-head">
+      <div class="site-brand">${PROJECT_LOGO_SVG}<div>Cloudflare D1 Visit Counter<small>Open-source · Self-hosted visitor badges</small></div></div>
+      <a class="site-link" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+    </header>
+    <section class="landing" aria-labelledby="introTitle">
+      <div>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Open source · Bring your own Cloudflare</span>
+        <h1 id="introTitle">Visitor badges.<br><span>Your infrastructure.</span></h1>
+        <p class="lead">Create your own GitHub README and website visit counters, with customizable SVG badges, a history dashboard, and statistics stored in your Cloudflare D1 database.</p>
+        <div class="cta-row">
+          <a class="cta cta-primary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter#快速部署" target="_blank" rel="noopener noreferrer">Deploy your own instance ↗</a>
+          <a class="cta cta-secondary" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">Explore source code</a>
+        </div>
+        <div class="usage-note" role="note">
+          <strong>This is a showcase, not a free badge-hosting service.</strong>
+          This page is a public preview of a privately operated Worker. Visitors cannot create counters, generate working badge links, or use the owner's D1 storage here. To issue real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.
+        </div>
+      </div>
+      <aside class="sample-card" aria-label="Illustrative badge design demo">
+        <div class="sample-label">STYLE EXAMPLE · STATIC DEMO</div>
+        <div class="sample-stage"><div class="sample-badge" id="sampleBadge"><span>Visitors</span><strong>24 / 1,280</strong></div></div>
+        <div class="demo-controls" role="group" aria-label="Try sample badge color">
+          <button type="button" data-demo-theme="blue" aria-pressed="true">Blue</button>
+          <button type="button" data-demo-theme="green" aria-pressed="false">Green</button>
+          <button type="button" data-demo-theme="purple" aria-pressed="false">Purple</button>
+        </div>
+        <p class="demo-caption">Illustrative values only. This interactive style sample makes no API calls, saves no data, and does not create a usable visit counter.</p>
+      </aside>
+    </section>
+    <section class="steps" id="get-started" aria-labelledby="stepsTitle">
+      <h2 class="section-head" id="stepsTitle">Your own counter in three steps</h2>
+      <div class="step-grid">
+        <div class="step"><span class="step-num">01</span><h3>Get the code</h3><p>Open the <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub repository</a> and copy <code>worker.js</code>.</p></div>
+        <div class="step"><span class="step-num">02</span><h3>Create a D1 database</h3><p>Initialize the counters table in your Cloudflare account and bind it as <code>HITS</code>.</p></div>
+        <div class="step"><span class="step-num">03</span><h3>Deploy &amp; generate</h3><p>Set <code>ALLOWED_DOMAIN</code> and <code>AUTH_CODE</code>, deploy your Worker, then create badges on your own URL.</p></div>
+      </div>
+    </section>
+    <details id="ownerDashboard" class="workspace-details">
+      <summary>Private management workspace <small>For the owner of this deployment only. Auth Code required for creating, editing, listing and deleting counters.</small></summary>
+      <p class="owner-hint">This dashboard manages only the counters stored in the connected D1 database. Public visitors should deploy their own instance instead.</p>
     <section class="panel">
       <div class="grid">
         <label style="grid-column: 1 / -1;">Auth Code<input id="authCode" type="password" placeholder="Deploy your own Worker and configure AUTH_CODE in worker.js to unlock all features"></label>
@@ -933,9 +1038,10 @@ function renderGeneratorPage() {
           </select>
         </label>
       </div>
-      <p class="hint">URL is the public key for badge data and the status page. Page names, repository paths, and Chinese keys are also supported. Badge Label only changes the text shown on the badge.</p>
+      <p class="hint">URL is the saved counter key; Badge Label changes only the visible text. To move an existing counter and keep its visits, choose Edit below.</p>
+      <p class="edit-banner" id="editNotice" hidden aria-live="polite">Editing an existing counter. Change the URL to migrate its total visits, history and badge style; old badge links will keep working.</p>
       <div class="actions">
-        <button id="create">Create Counter</button><button id="loadCounters" class="secondary-btn" type="button">Load Created Counters</button>
+        <button id="create">Create Counter</button><button id="saveCounter" type="button" hidden>Save Changes</button><button id="cancelEdit" type="button" class="secondary-btn" hidden>Cancel Edit</button><button id="loadCounters" class="secondary-btn" type="button">Load Created Counters</button>
         <div class="preview"><img id="badgePreview" alt=""><a id="statusLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; margin-left:12px; color:#0969da; font-weight:700;">Open status page</a></div>
       </div>
     </section>
@@ -948,10 +1054,12 @@ function renderGeneratorPage() {
     </section>
     <section class="panel">
       <h2>Created Counters</h2>
-      <p class="hint">Load requires Auth Code. Deleting a counter removes its badge data and status chart data.</p>
+      <p class="hint">Select Use to copy an existing link, or Edit to update its URL and style without resetting statistics. Delete permanently removes its data. All actions require the owner's Auth Code.</p>
       <div class="counter-toolbar"><button id="selectAllCounters" class="secondary-btn" type="button">Select All</button><button id="deleteSelectedCounters" class="danger-btn" type="button">Delete Selected</button></div>
       <div id="counterList" class="counter-list"><span class="empty">No counters loaded.</span></div>
     </section>
+    </details>
+    <footer class="footer">Open-source software · Bring your own Cloudflare Workers + D1 · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter" target="_blank" rel="noopener noreferrer">GitHub source &amp; deployment guide ↗</a></footer>
   </main>
   <script>
     const domain = location.host
@@ -959,6 +1067,13 @@ function renderGeneratorPage() {
     let createdCounter = ''
     let currentCounts = { daily: 0, total: 0 }
     let outputMode = 'saved'
+    let editingCounter = ''
+    for (const button of document.querySelectorAll('[data-demo-theme]')) {
+      button.addEventListener('click', () => {
+        $('sampleBadge').className = 'sample-badge' + (button.dataset.demoTheme === 'blue' ? '' : ' ' + button.dataset.demoTheme)
+        for (const other of document.querySelectorAll('[data-demo-theme]')) other.setAttribute('aria-pressed', String(button === other))
+      })
+    }
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -1104,6 +1219,7 @@ function renderGeneratorPage() {
         useButton.className = 'secondary-btn'
         useButton.textContent = 'Use'
         useButton.addEventListener('click', () => {
+          stopEditing()
           createdCounter = item.counter
           $('source').value = item.counter
           $('label').value = config.label || ''
@@ -1113,6 +1229,27 @@ function renderGeneratorPage() {
           setPickerColor('countColor', config.countColor || '#555555')
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
         })
+        const editButton = document.createElement('button')
+        editButton.type = 'button'
+        editButton.className = 'secondary-btn'
+        editButton.textContent = 'Edit'
+        editButton.addEventListener('click', () => {
+          editingCounter = item.counter
+          createdCounter = item.counter
+          $('source').value = item.counter
+          $('label').value = config.label || ''
+          $('style').value = config.style || 'flat'
+          $('labelStyle').value = config.labelStyle || 'default'
+          setPickerColor('labelColor', config.labelColor || '#A4D3EE')
+          setPickerColor('countColor', config.countColor || '#555555')
+          $('editNotice').hidden = false
+          $('create').hidden = true
+          $('saveCounter').hidden = false
+          $('cancelEdit').hidden = false
+          updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
+          $('source').focus()
+          $('source').scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
         const deleteButton = document.createElement('button')
         deleteButton.type = 'button'
         deleteButton.className = 'danger-btn'
@@ -1120,10 +1257,67 @@ function renderGeneratorPage() {
         deleteButton.addEventListener('click', async () => {
           await deleteCounters([item.counter])
         })
-        row.append(checkbox, info, useButton, deleteButton)
+        row.append(checkbox, info, useButton, editButton, deleteButton)
         list.appendChild(row)
       }
     }
+    function stopEditing() {
+      editingCounter = ''
+      $('editNotice').hidden = true
+      $('create').hidden = false
+      $('saveCounter').hidden = true
+      $('cancelEdit').hidden = true
+    }
+    function badgeFields() {
+      return {
+        label: $('label').value.trim(),
+        labelColor: $('labelColor').value,
+        countColor: $('countColor').value,
+        style: $('style').value,
+        labelStyle: $('labelStyle').value
+      }
+    }
+    $('cancelEdit').addEventListener('click', () => {
+      stopEditing()
+      createdCounter = ''
+      $('source').value = ''
+      $('badgePreview').removeAttribute('src')
+      showToast('Edit cancelled')
+    })
+    $('saveCounter').addEventListener('click', async () => {
+      const previous = editingCounter
+      const next = counterValue()
+      const authCode = $('authCode').value.trim()
+      if (!previous || !next || !authCode) {
+        alert('A valid URL and Auth Code are required')
+        return
+      }
+      const renamed = next !== previous
+      if (renamed && !confirm('Move this counter to the new URL? Existing visits and old badge links will be preserved.')) return
+      const save = $('saveCounter')
+      save.disabled = true
+      try {
+        const payload = renamed
+          ? { counter: previous, newCounter: next, authCode, config: badgeFields() }
+          : { counter: previous, authCode, ...badgeFields() }
+        const res = await fetch(renamed ? '/api/rename' : '/api/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Save failed')
+        stopEditing()
+        createdCounter = next
+        updateOutputs(next, { daily: data.daily || 0, total: data.total || 0 })
+        await loadCounters()
+        showToast(renamed ? 'URL migrated; old badge links still work' : 'Badge style saved')
+      } catch (error) {
+        alert(error.message || 'Could not save changes')
+      } finally {
+        save.disabled = false
+      }
+    })
     function selectedCounters() {
       return Array.from(document.querySelectorAll('.counter-select:checked')).map(input => input.value)
     }
@@ -1197,7 +1391,7 @@ function renderGeneratorPage() {
       createdCounter = counter
       updateOutputs(counter, { daily: data.daily || 0, total: data.total || 0 })
       await loadCounters()
-      showToast(data.exists ? 'Counter already exists, links updated' : 'Counter created')
+      showToast(data.exists ? 'Saved existing counter style' : 'Counter created')
     })
     $('loadCounters').addEventListener('click', () => loadCounters({ notify: true, scroll: true }))
     function setOutputMode(mode) {
@@ -1253,6 +1447,13 @@ function renderGeneratorPage() {
     $('source').addEventListener('input', () => {
       if (counterValue() !== createdCounter) {
         $('badgePreview').removeAttribute('src')
+        if (editingCounter) {
+          for (const id of ['markdownCode', 'markdownLinkCode', 'htmlCode', 'imageUrlCode', 'statusUrlCode']) {
+            $(id).textContent = 'Save changes to generate the new URL.'
+            $(id).classList.add('empty')
+          }
+          $('statusLink').style.display = 'none'
+        }
       }
     })
   </script>
