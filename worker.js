@@ -37,9 +37,8 @@ async function handleRequest(request, db) {
     return textResponse('Not Found', 404)
   }
 
-  if (url.pathname === '/' || url.pathname === '') {
-    return htmlResponse(renderGeneratorPage())
-  }
+  if (url.pathname === '/' || url.pathname === '') return htmlResponse(renderLandingPage(request))
+  if (url.pathname === '/admin' || url.pathname === '/admin/') return htmlResponse(renderGeneratorPage(request))
 
   if (url.pathname === '/api/create') {
     return handleCreateCounter(request, db)
@@ -65,7 +64,7 @@ async function handleRequest(request, db) {
   }
 
   if (url.pathname === '/status') {
-    return handleStatusPage(url, db)
+    return handleStatusPage(url, db, request)
   }
 
   if (url.pathname === '/api/monthly') {
@@ -806,7 +805,101 @@ function generateHistorySvg({ title, series, width, height, chartType, color }) 
   ${shape}
 </svg>`
 }
-function renderGeneratorPage() {
+
+const UI_CSS = `
+:root{font-family:Inter,ui-sans-serif,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#16243d;background:#f5f7fb;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0;color:#182641;background:#f5f7fb}a{text-decoration:none;color:inherit}button,input,select{font:inherit}
+[hidden]{display:none!important}a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #91b9ff;outline-offset:3px}
+.top-nav{max-width:1200px;min-height:82px;margin:auto;padding:15px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:-.03em;font-size:15px}.brand svg{width:26px;height:26px}
+.brand-icon{width:42px;height:42px;display:grid;place-items:center;background:#e5eeff;border-radius:13px}
+.brand small{display:block;font-size:11px;color:#8997ac;font-weight:500;letter-spacing:0;margin-top:3px}
+.nav-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.nav-link{border-radius:9px;padding:10px 12px;font-size:13px;font-weight:650;color:#687891}
+.nav-link:hover,.nav-link.active{background:#e8eef9;color:#235ed0}
+.lang-switch{display:flex;border:1px solid #dfe6f0;border-radius:10px;background:white;padding:3px;gap:2px}
+.lang-switch a{padding:7px 10px;border-radius:7px;font-size:12px;font-weight:800;color:#8c9ab0}
+.lang-switch a.active{background:#e8f0ff;color:#245fdd}
+.btn-primary,.btn-outline{display:inline-flex;justify-content:center;align-items:center;gap:8px;padding:12px 19px;border-radius:10px;font-size:13px;font-weight:750;border:1px solid #2465ec;cursor:pointer;background:#2465ec;color:white;box-shadow:0 5px 17px #2563eb1e}
+.btn-primary:hover{background:#1651c7}.btn-outline{background:white;border-color:#dce4f0;color:#273a55;box-shadow:none}.btn-outline:hover{background:#f8faff}
+.shell{max-width:1200px;margin:auto;padding:34px 26px 78px}.eyebrow{font-size:11px;color:#396ed9;font-weight:850;letter-spacing:.11em;text-transform:uppercase}
+.surface{background:white;border:1px solid #e0e7f1;border-radius:18px;box-shadow:0 12px 35px #172e5708}
+.site-footer{padding:25px;text-align:center;color:#8a99ab;font-size:12px;border-top:1px solid #e4eaf4}.site-footer a{color:#2d62d2;font-weight:700}
+@media(max-width:720px){.top-nav{padding:14px 16px;gap:8px;flex-wrap:wrap}.brand{font-size:13px}.brand small{display:none}.nav-actions{gap:2px}.nav-link{padding:7px;font-size:12px}.shell{padding:20px 16px 56px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+`
+function uiLang(request) {
+ const url = new URL(request.url)
+ const language = url.searchParams.get('lang')
+ if(language === 'en' || language === 'zh') return language
+ return (request.headers?.get('Accept-Language')||'').toLowerCase().startsWith('zh')?'zh':'en'
+}
+function uiSwitch(url,lang) {
+ const u1 = new URL(url);u1.searchParams.set('lang','en')
+ const u2 = new URL(url);u2.searchParams.set('lang','zh')
+ return `<nav class="lang-switch" aria-label="Language / 语言"><a lang="en" class="${lang==='en'?'active':''}" href="${escapeXml(u1.pathname+u1.search)}" aria-current="${lang==='en'?'page':'false'}">EN</a><a lang="zh-CN" class="${lang==='zh'?'active':''}" href="${escapeXml(u2.pathname+u2.search)}" aria-current="${lang==='zh'?'page':'false'}">中文</a></nav>`
+}
+function uiHeader(url,lang,current) {
+ const t=(a,b)=>lang==='zh'?b:a
+ return `<header class="top-nav"><a class="brand" href="/?lang=${lang}"><span class="brand-icon">${PROJECT_LOGO_SVG}</span><span>Cloudflare D1 Visit Counter<small>${t('Open-source · Self-hosted','开源 · 自托管')}</small></span></a>
+ <div class="nav-actions"><a class="nav-link ${current==='home'?'active':''}" href="/?lang=${lang}">${t('Overview','项目首页')}</a><a class="nav-link ${current==='admin'?'active':''}" href="/admin?lang=${lang}">${t('Dashboard','管理后台')}</a><a class="nav-link" target="_blank" rel="noopener noreferrer" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">GitHub ↗</a>${uiSwitch(url,lang)}</div></header>`
+}
+
+
+function renderLandingPage(request) {
+ const lang=uiLang(request), t=(a,b)=>lang==='zh'?b:a, url=new URL(request.url)
+ return `<!doctype html><html lang="${lang==='zh'?'zh-CN':'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta name="description" content="Self-hosted Cloudflare D1 visit counter. Open source, deploy your own instance.">
+ <title>${t('Visitor badges. Your infrastructure.','访问徽章，由你掌控。')} · Cloudflare D1</title><link rel="icon" href="${FAVICON_HREF}">
+ <style>${UI_CSS}
+ .hero{display:grid;grid-template-columns:1.08fr .92fr;gap:54px;align-items:center;margin:26px 0 44px}
+ .hero h1{font-size:clamp(39px,5.8vw,70px);letter-spacing:-.055em;line-height:1.07;margin:18px 0;color:#14223e}
+ .hero h1 em{color:#2866e8;font-style:normal}.hero p{font-size:16px;color:#6f8098;line-height:1.85;max-width:630px}
+ .hero-actions{display:flex;gap:11px;flex-wrap:wrap;margin-top:24px}
+ .demo{padding:23px;box-shadow:0 28px 74px #294c891c}.demo-head{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#7f8da1;font-size:11px;font-weight:800}
+ .pill{padding:7px 10px;background:#ebf2ff;color:#2b65d9;border-radius:30px;font-size:10px}
+ .demo-stage{display:flex;min-height:232px;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 20%,#e8f1ff,#f8fafd 70%);border:1px solid #e8edf5;border-radius:14px;margin:20px 0}
+ .demo-badge{display:flex;overflow:hidden;border-radius:5px;box-shadow:0 10px 25px #162b4c21;font-size:14px;font-weight:750}.demo-badge span,.demo-badge strong{padding:12px 17px}
+ .demo-badge span{background:#dbeaff;color:#1c4a90}.demo-badge strong{background:#2866e8;color:white}
+ .demo-badge.green span{background:#d9f5e6;color:#187553}.demo-badge.green strong{background:#208f68}.demo-badge.purple span{background:#eadefc;color:#6942ad}.demo-badge.purple strong{background:#7b54d6}
+ .swatches{display:flex;gap:8px}.swatches button{padding:8px 12px;border:1px solid #dce4f1;border-radius:8px;background:white;font-size:12px;color:#718098;font-weight:750;cursor:pointer}
+ .swatches button[aria-pressed=true]{border-color:#9fc0fa;background:#eff5ff;color:#2762da}
+ .demo-note{font-size:12px!important;color:#8c9aae!important;margin:12px 0 0!important;line-height:1.65!important}
+ .disclaimer{display:flex;gap:14px;padding:20px 23px;border-radius:14px;background:#edf3fe;border:1px solid #dce7fb;margin-bottom:53px}
+ .disclaimer .i{display:grid;place-items:center;width:31px;height:31px;flex:none;border-radius:10px;background:#dceaff;color:#3068d5;font-weight:850}
+ .disclaimer strong{font-size:14px;color:#234779}.disclaimer p{margin:6px 0 0;color:#637691;font-size:13px;line-height:1.7}
+ .section-head{margin-bottom:23px}.section-head h2{font-size:27px;letter-spacing:-.03em;margin:9px 0 0}
+ .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.item{padding:24px}.item .icon{display:grid;place-items:center;background:#eaf2ff;color:#356edf;border-radius:13px;width:40px;height:40px;font-size:20px}
+ .item h3{font-size:16px;margin:20px 0 8px}.item p{font-size:13px;color:#7c8da5;line-height:1.75;margin:0}
+ .steps{margin-top:55px}.step-number{color:#356fdf;font-size:12px;letter-spacing:.11em;font-weight:850}
+ .item code{font-size:12px;background:#eff3f8;border:1px solid #e0e9f2;padding:2px 5px;border-radius:5px;overflow-wrap:anywhere}
+ .bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:34px 38px;margin-top:45px;color:white;border-radius:18px;background:linear-gradient(110deg,#214795,#2c6ee7)}
+ .bottom h2{font-size:24px;margin:0 0 8px}.bottom p{margin:0;color:#d0e1ff;font-size:13px}.bottom .btn-primary{background:white;border-color:white;color:#2759b6}
+ @media(max-width:850px){.hero{grid-template-columns:1fr;gap:24px}.cards{grid-template-columns:1fr}.bottom{align-items:flex-start;flex-direction:column}}
+ </style></head><body>${uiHeader(url,lang,'home')}<main class="shell">
+ <section class="hero"><div><div class="eyebrow">✦ ${t('OPEN SOURCE · SELF-HOSTED','开源 · 自托管')}</div>
+ <h1>${t('Visitor badges.','访问量徽章，')}<br><em>${t('Your infrastructure.','由你自己掌控。')}</em></h1>
+ <p>${t('An elegant visitor counter for GitHub READMEs and websites. Customize SVG badges, explore traffic trends, and own the data with Cloudflare Workers and D1.','面向 GitHub README 和网站的轻量级访问量工具。自定义 SVG 徽章、查看访问趋势，并使用 Cloudflare Workers 和 D1 自主管理数据。')}</p>
+ <div class="hero-actions"><a class="btn-primary" target="_blank" rel="noopener noreferrer" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter#${lang==='zh'?'快速部署':'quick-start-deployment'}">${t('Deploy your own instance','部署自己的实例')} ↗</a><a class="btn-outline" href="/admin?lang=${lang}">${t('Open dashboard','进入管理后台')} →</a></div></div>
+ <aside class="surface demo"><div class="demo-head"><span>${t('BADGE PREVIEW','徽章预览')}</span><span class="pill">${t('STATIC DEMO','静态示例')}</span></div>
+ <div class="demo-stage"><div id="sampleBadge" class="demo-badge"><span>Visitors</span><strong>24 / 1,280</strong></div></div>
+ <div class="swatches" role="group" aria-label="${t('Preview colors','预览配色')}"><button type="button" data-demo-theme="blue" aria-pressed="true">${t('Blue','蓝色')}</button><button type="button" data-demo-theme="green" aria-pressed="false">${t('Green','绿色')}</button><button type="button" data-demo-theme="purple" aria-pressed="false">${t('Purple','紫色')}</button></div>
+ <p class="demo-note">${t('Illustrative data only; changing colors does not use backend resources or create a working badge.','模拟数据仅供预览；切换配色不会调用后台，也不会生成真实徽章。')}</p></aside></section>
+ <aside class="disclaimer" role="note"><span class="i" aria-hidden="true">i</span><div><strong>${t('This is a showcase, not a free badge-hosting service.','本站仅供展示，不提供免费的徽章生成或后台托管服务。')}</strong><p>${t('Visitors cannot create public counters or use this deployment’s Worker compute and D1 storage. To generate real badges, deploy the open-source project in your own Cloudflare account and set your own Auth Code.','访客不能使用本站 Worker 计算与 D1 存储来创建新计数器。需要真实徽章，请在自己的 Cloudflare 账号部署开源项目并配置管理密码。')}</p></div></aside>
+ <section><div class="section-head"><div class="eyebrow">${t('WHY SELF-HOST','为何选择自托管')}</div><h2>${t('All the essentials, owned by you.','功能完整，数据自主。')}</h2></div>
+ <div class="cards"><article class="surface item"><span class="icon">◈</span><h3>${t('Owned infrastructure','独立基础设施')}</h3><p>${t('Run your own Worker and D1 database, with no shared counter storage.','使用自己的 Worker 和 D1 数据库，无需依赖公用计数平台。')}</p></article>
+ <article class="surface item"><span class="icon">▦</span><h3>${t('Customizable badges','自定义徽章')}</h3><p>${t('Control badge style, labels, colors, and embed URLs.','自由设置徽章风格、标签、颜色和嵌入链接。')}</p></article>
+ <article class="surface item"><span class="icon">⌁</span><h3>${t('Readable analytics','清晰的统计分析')}</h3><p>${t('View trends, manage counter keys, and preserve your history.','查看访问趋势、维护计数器链接，并保留历史数据。')}</p></article></div></section>
+ <section class="steps" id="get-started"><div class="section-head"><div class="eyebrow">${t('GET STARTED','快速开始')}</div><h2>${t('Deploy in three steps.','只需三步即可部署。')}</h2></div>
+ <div class="cards"><article class="surface item"><span class="step-number">01 / SOURCE</span><h3>${t('Get the code','获取源码')}</h3><p>${t('Clone the GitHub repository or copy','克隆 GitHub 仓库或复制')} <code>worker.js</code>。</p></article>
+ <article class="surface item"><span class="step-number">02 / DATABASE</span><h3>${t('Create your D1 database','创建 D1 数据库')}</h3><p>${t('Initialize the counters table and configure binding','初始化 counters 数据表，并配置绑定')} <code>HITS</code>。</p></article>
+ <article class="surface item"><span class="step-number">03 / DEPLOY</span><h3>${t('Configure your Worker','配置并发布 Worker')}</h3><p>${t('Set','配置')} <code>ALLOWED_DOMAIN</code> ${t('and','以及')} <code>AUTH_CODE</code>，${t('then deploy to your own hostname.','随后发布到自己的域名。')}</p></article></div></section>
+ <section class="bottom"><div><h2>${t('Make it yours.','开始搭建你的计数器。')}</h2><p>${t('Open source, self-hosted, and built for long-term use.','开源、自托管，适合长期使用。')}</p></div><a class="btn-primary" target="_blank" rel="noopener noreferrer" href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">${t('Explore on GitHub','前往 GitHub 查看源码')} ↗</a></section>
+ </main><footer class="site-footer">Cloudflare D1 Visit Counter · ${t('Open-source · Self-hosted','开源 · 自托管')} · <a href="https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter">GitHub ↗</a></footer>
+ <script>for(const b of document.querySelectorAll('[data-demo-theme]'))b.addEventListener('click',()=>{const n=document.getElementById('sampleBadge');n.className='demo-badge'+(b.dataset.demoTheme==='blue'?'':' '+b.dataset.demoTheme);for(const e of document.querySelectorAll('[data-demo-theme]'))e.setAttribute('aria-pressed',String(e===b))})</script>
+ </body></html>`
+}
+
+function renderGeneratorPage(request) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
