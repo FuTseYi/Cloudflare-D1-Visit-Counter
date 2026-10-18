@@ -435,7 +435,7 @@ async function handleVisitorBadge(url, db) {
 }
 
 async function handleStatusPage(url, db) {
-  const counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
+  let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
     return htmlResponse(renderStatusPage({ error: 'Missing or invalid path' }))
   }
@@ -486,7 +486,7 @@ async function handleHistoryChart(url, db, counter) {
 }
 
 async function handleMonthlyApi(url, db) {
-  const counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
+  let counter = normalizeCounterName(url.searchParams.get('counter') || url.searchParams.get('path'))
   if (!counter) {
     return jsonResponse({ error: 'Missing or invalid path' }, 400)
   }

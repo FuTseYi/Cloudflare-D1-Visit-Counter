@@ -162,3 +162,48 @@ test('reserved alias cannot be repurposed for a different counter', async () => 
   assert.equal(db.value('new:total'), 12)
   assert.equal(db.value('other:total'), 31)
 })
+
+test('status pages work for existing keys and historical aliases without incrementing counts', async () => {
+  const db = new TestD1()
+  const oldKey = 'https://github.com/FuTseYi/Cloudflare-D1-Visit-Counter'
+  const newKey = 'https://github.com/FuTseYi/Visit-Counter'
+  const today = new Date().toISOString().slice(0, 10)
+  db.seed(oldKey + ':total', 123)
+  db.seed(oldKey + ':daily:' + today, 8)
+  const statusUrl = key => new URL('https://test.example/status?path=' + encodeURIComponent(key))
+  const before = await worker.handleStatusPage(statusUrl(oldKey), db)
+  assert.equal(before.status, 200)
+  assert.match(await before.text(), /123/)
+  const renamed = await manage(worker.handleRenameCounter, db, { counter: oldKey, newCounter: newKey })
+  assert.equal(renamed.status, 200)
+  for (const key of [oldKey, newKey]) {
+    const response = await worker.handleStatusPage(statusUrl(key), db)
+    assert.equal(response.status, 200)
+    const html = await response.text()
+    assert.match(html, /123/)
+    assert.match(html, /Visit Trend/)
+    assert.match(html, /Visit-Counter/)
+  }
+  assert.equal(db.value(newKey + ':total'), 123)
+  assert.equal(db.value(oldKey + ':total'), null)
+})
+
+test('monthly JSON works for direct keys and aliases without modifying statistics', async () => {
+  const db = new TestD1()
+  db.seed('old:total', 67)
+  db.seed('old:daily:' + new Date().toISOString().slice(0, 10), 3)
+  const monthlyUrl = key => new URL('https://test.example/api/monthly?path=' + encodeURIComponent(key))
+  const direct = await worker.handleMonthlyApi(monthlyUrl('old'), db)
+  assert.equal(direct.status, 200)
+  assert.equal((await direct.json()).total, 67)
+  await manage(worker.handleRenameCounter, db, { counter: 'old', newCounter: 'new' })
+  for (const key of ['old', 'new']) {
+    const response = await worker.handleMonthlyApi(monthlyUrl(key), db)
+    assert.equal(response.status, 200)
+    const data = await response.json()
+    assert.equal(data.counter, 'new')
+    assert.equal(data.total, 67)
+    assert.equal(data.daily, 3)
+  }
+  assert.equal(db.value('new:total'), 67)
+})
