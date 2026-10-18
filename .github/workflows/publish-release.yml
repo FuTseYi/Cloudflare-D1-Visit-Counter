@@ -1,0 +1,88 @@
+name: Publish stable release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/releases/v*.md'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing release notes version (for example v2.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-stable-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate Worker and regression tests
+        run: |
+          node --check worker.js
+          node --test tests/*.test.cjs
+
+      - name: Resolve release version and notes
+        id: prepare
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            version="${INPUT_VERSION}"
+          else
+            mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}" | grep -E '^docs/releases/v[0-9]+\.[0-9]+\.[0-9]+\.md$' || true)
+            if (( ${#changed[@]} != 1 )); then
+              echo "::error::Expected exactly one new/updated semver release notes file."
+              exit 1
+            fi
+            version="$(basename "${changed[0]}" .md)"
+          fi
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid stable version tag: ${version}"
+            exit 1
+          fi
+          notes="docs/releases/${version}.md"
+          test -s "${notes}"
+          title="$(sed -n '1s/^# //p' "${notes}")"
+          test -n "${title}" || { echo "::error::Missing release title heading"; exit 1; }
+          printf 'tag=%s\nnotes=%s\ntitle=%s\n' "${version}" "${notes}" "${title}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create latest stable GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.prepare.outputs.title }}
+          NOTES_FILE: ${{ steps.prepare.outputs.notes }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists; skipping."
+            exit 0
+          fi
+          if git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo "::error::Tag ${RELEASE_TAG} already exists without a Release."
+            exit 1
+          fi
+          gh release create "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${RELEASE_TITLE}" \
+            --notes-file "${NOTES_FILE}" \
+            --latest
