@@ -16,6 +16,7 @@ CREATE TABLE counters (
 | `{counter}:total` | Total visits. |
 | `{counter}:daily:{YYYY-MM-DD}` | Daily visits. |
 | `{counter}:meta:config` | Saved badge label, colors, style, and type. |
+| `{oldCounter}:meta:alias` | The canonical key after a rename; reserves the previous key for existing embeds. |
 
 ## Hot Path
 
@@ -53,3 +54,9 @@ Increasing `HISTORY_DAYS` keeps existing daily rows and lets the retained window
 
 For high-traffic public badges, compare your expected traffic with current Cloudflare Workers and D1 limits before deployment.
 
+
+## Counter URL Migration
+
+Authenticated `POST /api/rename` changes the counter key without resetting counts. All rows belonging to the original key (`total`, daily `YYYY-MM-DD`, `meta:config`, legacy `meta:label`, and `meta:cleanup`) move inside one D1 `batch()` transaction. Updating existing aliases and adding the old-key alias happen in the same transaction; conflicts roll back the whole migration.
+
+The hot path still tries the canonical total directly first. **Only when that lookup misses** does the public badge endpoint fetch a retired-key alias, keeping normal counter requests fast. Previous counter keys cannot be reused while aliased; deletion removes their aliases. Changing the Worker hostname is independent of renaming a D1 counter key.
