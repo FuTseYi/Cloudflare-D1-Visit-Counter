@@ -45,6 +45,10 @@ async function handleRequest(request, db) {
     return handleCreateCounter(request, db)
   }
 
+  if (url.pathname === '/api/rename') {
+    return handleRenameCounter(request, db)
+  }
+
   if (url.pathname === '/api/list') {
     return handleListCounters(request, db)
   }
@@ -124,6 +128,9 @@ async function handleCreateCounter(request, db) {
   }
 
   const exists = await counterExists(db, counter)
+  if (!exists && await getCounterAlias(db, counter)) {
+    return jsonResponse({ error: 'This key is reserved by an earlier rename. Edit its active counter instead.' }, 409)
+  }
   if (exists) {
     await setCounterConfig(db, counter, badgeConfig)
     const today = todayString()
@@ -150,6 +157,96 @@ async function handleCreateCounter(request, db) {
     badge: `https://${ALLOWED_DOMAIN}/${counter}.svg?action=hit`,
     history: `https://${ALLOWED_DOMAIN}/history/${counter}.svg`,
   }, 201)
+}
+
+// Rename counters without resetting their totals, trends or badge styles.
+// D1 batch() is atomic: a uniqueness collision rolls back every statement.
+async function handleRenameCounter(request, db) {
+  if (request.method !== 'POST') return textResponse('Method not allowed', 405)
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400)
+  }
+  const authError = validateAuthCode(body.authCode)
+  if (authError) return authError
+  const previous = normalizeCounterName(body.counter)
+  const next = normalizeCounterName(body.newCounter)
+  if (!previous || !next) return jsonResponse({ error: 'Both counter keys must be 1-512 valid characters.' }, 400)
+  if (previous === next) return jsonResponse({ error: 'The new URL must differ from the current URL.' }, 400)
+  if (!isCounterAllowed(previous) || !isCounterAllowed(next)) {
+    return jsonResponse({ error: 'Both keys must be included in ALLOWED_PATHS.' }, 403)
+  }
+  if (!await counterExists(db, previous)) return jsonResponse({ error: 'Original counter not found.' }, 404)
+  if (await counterExists(db, next) || await getCounterAlias(db, next)) {
+    return jsonResponse({ error: 'Target key already exists or belongs to a previous rename.' }, 409)
+  }
+
+  // The existing D1 table stores each counter as a family of suffixed keys.
+  // Include only its own well-known metadata and daily YYYY-MM-DD keys,
+  // so other counters with overlapping prefixes are never touched.
+  const suffixes = [':total', ':meta:config', ':meta:label', ':meta:cleanup']
+  const oldKeys = suffixes.map(suffix => previous + suffix)
+  const oldDaily = previous + ':daily:'
+  const newDaily = next + ':daily:'
+  const move = db.prepare(`
+    UPDATE counters SET name = CASE
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      WHEN name = ? THEN ?
+      ELSE ? || substr(name, ?)
+    END
+    WHERE name IN (?, ?, ?, ?)
+       OR (substr(name, 1, ?) = ? AND length(name) = ?
+           AND substr(name, ?) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+  `).bind(
+    previous + ':total', next + ':total',
+    previous + ':meta:config', next + ':meta:config',
+    previous + ':meta:label', next + ':meta:label',
+    previous + ':meta:cleanup', next + ':meta:cleanup',
+    newDaily, oldDaily.length + 1,
+    ...oldKeys,
+    oldDaily.length, oldDaily, oldDaily.length + 10, oldDaily.length + 1
+  )
+  const repoint = db.prepare("UPDATE counters SET count = ? WHERE name GLOB '*:meta:alias' AND count = ?")
+    .bind(next, previous)
+  const alias = db.prepare('INSERT INTO counters (name, count) VALUES (?, ?)')
+    .bind(previous + ':meta:alias', next)
+  const operations = [move, repoint, alias]
+  if (body.config !== undefined) {
+    operations.push(db.prepare(`
+      INSERT INTO counters (name, count) VALUES (?, ?)
+      ON CONFLICT(name) DO UPDATE SET count = excluded.count
+    `).bind(next + ':meta:config', JSON.stringify(normalizeBadgeConfig(body.config))))
+  }
+
+  try {
+    await db.batch(operations)
+  } catch {
+    return jsonResponse({ error: 'Rename could not be completed. The target may have conflicting data; no changes were saved.' }, 409)
+  }
+  const today = todayString()
+  return jsonResponse({
+    success: true, counter: next, previous,
+    total: await getCounter(db, next + ':total'),
+    daily: await getCounter(db, next + ':daily:' + today),
+    legacyLinks: 'Existing badge and status URLs using the old counter key remain compatible.'
+  })
+}
+
+async function getCounterAlias(db, counter) {
+  const alias = await getCounterValue(db, counter + ':meta:alias')
+  if (typeof alias !== 'string') return null
+  const target = normalizeCounterName(alias)
+  return target && target !== counter && isCounterAllowed(target) ? target : null
+}
+
+async function resolveCounterForRead(db, counter) {
+  if (await counterExists(db, counter)) return counter
+  const target = await getCounterAlias(db, counter)
+  return target && await counterExists(db, target) ? target : null
 }
 
 async function handleListCounters(request, db) {
@@ -209,9 +306,11 @@ async function handleDeleteCounter(request, db) {
   }
 
   const dailyPrefix = `${counter}:daily:`
-  await db.prepare('DELETE FROM counters WHERE name = ? OR name = ? OR name = ? OR name = ? OR substr(name, 1, ?) = ?')
-    .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix)
-    .run()
+  await db.batch([
+    db.prepare('DELETE FROM counters WHERE name = ? OR name = ? OR name = ? OR name = ? OR substr(name, 1, ?) = ?')
+      .bind(`${counter}:total`, `${counter}:meta:label`, `${counter}:meta:config`, `${counter}:meta:cleanup`, dailyPrefix.length, dailyPrefix),
+    db.prepare("DELETE FROM counters WHERE name GLOB '*:meta:alias' AND count = ?").bind(counter),
+  ])
 
   return jsonResponse({ success: true, counter })
 }
@@ -243,20 +342,29 @@ async function handleCounterRequest(url, db, counter, isSvg) {
   }
 
   const today = todayString()
-  const totalKey = `${counter}:total`
-  const dailyKey = `${counter}:daily:${today}`
   let total
   let daily
-
   if (action === 'hit') {
-    total = await incrementExistingCounter(db, totalKey)
-    if (total === null) return textResponse('Counter not found', 404)
-    daily = await incrementCounter(db, dailyKey)
+    total = await incrementExistingCounter(db, `${counter}:total`)
+    if (total === null) {
+      const canonical = await getCounterAlias(db, counter)
+      if (!canonical) return textResponse('Counter not found', 404)
+      counter = canonical
+      total = await incrementExistingCounter(db, `${counter}:total`)
+      if (total === null) return textResponse('Counter not found', 404)
+    }
+    daily = await incrementCounter(db, `${counter}:daily:${today}`)
     if (daily === 1) await cleanupOldDailyData(db, counter, today)
   } else {
-    total = await getCounterValue(db, totalKey)
-    if (total === null) return textResponse('Counter not found', 404)
-    daily = await getCounter(db, dailyKey)
+    total = await getCounterValue(db, `${counter}:total`)
+    if (total === null) {
+      const canonical = await getCounterAlias(db, counter)
+      if (!canonical) return textResponse('Counter not found', 404)
+      counter = canonical
+      total = await getCounterValue(db, `${counter}:total`)
+      if (total === null) return textResponse('Counter not found', 404)
+    }
+    daily = await getCounter(db, `${counter}:daily:${today}`)
   }
 
   if (isSvg) {
@@ -308,9 +416,13 @@ async function handleVisitorBadge(url, db) {
   }
 
   const today = todayString()
-  const total = await incrementExistingCounter(db, `${counter}:total`)
+  let total = await incrementExistingCounter(db, `${counter}:total`)
   if (total === null) {
-    return textResponse('Counter not found', 404)
+    const canonical = await getCounterAlias(db, counter)
+    if (!canonical) return textResponse('Counter not found', 404)
+    counter = canonical
+    total = await incrementExistingCounter(db, `${counter}:total`)
+    if (total === null) return textResponse('Counter not found', 404)
   }
   const daily = await incrementCounter(db, `${counter}:daily:${today}`)
   if (daily === 1) await cleanupOldDailyData(db, counter, today)
@@ -334,11 +446,11 @@ async function handleStatusPage(url, db) {
     return htmlResponse(renderStatusPage({ error: 'Missing or invalid path' }))
   }
 
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return htmlResponse(renderStatusPage({ counter, error: 'Counter not found' }))
+  counter = canonical
   const today = todayString()
   const total = await getCounterValue(db, `${counter}:total`)
-  if (total === null) {
-    return htmlResponse(renderStatusPage({ counter, error: 'Counter not found' }))
-  }
   const daily = await getCounter(db, `${counter}:daily:${today}`)
   const historyDays = getHistoryDays()
   const days = clampInt(url.searchParams.get('days'), historyDays, 1, historyDays)
@@ -355,9 +467,9 @@ async function handleHistoryChart(url, db, counter) {
     return textResponse('Not Found', 404)
   }
 
-  if (!await counterExists(db, counter)) {
-    return textResponse('Counter not found', 404)
-  }
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return textResponse('Counter not found', 404)
+  counter = canonical
 
   const historyDays = getHistoryDays()
   const days = clampInt(url.searchParams.get('days'), historyDays, 1, historyDays)
@@ -388,11 +500,11 @@ async function handleMonthlyApi(url, db) {
     return textResponse('Not Found', 404)
   }
 
+  const canonical = await resolveCounterForRead(db, counter)
+  if (!canonical) return textResponse('Counter not found', 404)
+  counter = canonical
   const today = todayString()
   const total = await getCounterValue(db, `${counter}:total`)
-  if (total === null) {
-    return textResponse('Counter not found', 404)
-  }
 
   const month = today.slice(0, 7)
   const monthStart = `${month}-01`
