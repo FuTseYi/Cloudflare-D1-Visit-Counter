@@ -243,9 +243,12 @@ async function handleRenameCounter(request, db) {
 }
 
 async function getCounterAlias(db, counter) {
-  const alias = await getCounterValue(db, counter + ':meta:alias')
-  if (typeof alias !== 'string') return null
-  const target = normalizeCounterName(alias)
+  // Aliases store TEXT in the legacy SQLite count column; getCounterValue
+  // intentionally coerces numeric counters and must not be used here.
+  const { results } = await db.prepare('SELECT count FROM counters WHERE name = ? LIMIT 1')
+    .bind(counter + ':meta:alias').all()
+  if (!results.length || typeof results[0].count !== 'string') return null
+  const target = normalizeCounterName(results[0].count)
   return target && target !== counter && isCounterAllowed(target) ? target : null
 }
 
