@@ -1046,10 +1046,14 @@ function renderGeneratorPage(request) {
     ${UI_CSS}
     body { background:#f5f7fb; }
     main {max-width:none;margin:0;padding:0}
-    .admin-layout{max-width:1360px;margin:auto;display:grid;grid-template-columns:242px minmax(0,1fr);gap:28px;padding:25px 26px 70px}
+    .admin-layout{max-width:1360px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:26px;padding:25px 26px 70px}
+    .admin-layout:not(.is-unlocked) .admin-main{width:100%;max-width:780px;margin:0 auto}
+    .admin-layout.is-unlocked{grid-template-columns:220px minmax(0,1fr)}
     .admin-aside{border:1px solid #e0e6f0;border-radius:18px;background:#fff;padding:22px;align-self:start;position:sticky;top:22px}
     .aside-eyebrow{color:#93a0b4;font-size:10px;letter-spacing:.12em;font-weight:800;margin:0 0 18px}
-    .aside-link{display:flex;align-items:center;gap:11px;border-radius:10px;color:#6c7c95;padding:12px 14px;font-size:13px;font-weight:700;margin:3px 0}
+    .aside-link{display:flex;align-items:center;gap:11px;border:0;width:100%;text-align:left;background:transparent;cursor:pointer;border-radius:10px;color:#6c7c95;padding:12px 14px;font-size:13px;font-weight:700;margin:3px 0;transition:background .15s ease,color .15s ease}
+    .aside-link:disabled{cursor:not-allowed;color:#aab5c6;background:transparent}
+    .aside-link[aria-current='location']{background:#eaf1ff;color:#2563eb;box-shadow:inset 3px 0 #316eee}
     .aside-link:hover,.aside-link.active{background:#eaf1ff;color:#2563eb}
     .aside-link .side-icon{font-size:18px;width:20px;text-align:center}
     .aside-note{padding:15px;margin-top:28px;background:#f0f5fd;border-radius:12px;color:#60738e;font-size:12px;line-height:1.65}
@@ -1067,18 +1071,18 @@ function renderGeneratorPage(request) {
     .stat-tile{padding:23px;border-radius:15px;background:#fff;border:1px solid #e1e8f3}
     .stat-tile span{display:block;font-size:12px;color:#8190a5;font-weight:650}
     .stat-tile strong{display:block;margin-top:7px;font-size:32px;letter-spacing:-.05em;color:#1f3150}
-    .admin-workgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-bottom:18px;align-items:start}
+    .admin-workgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;margin-bottom:18px;align-items:stretch}
     .admin-main .panel{margin:0;padding:24px;border-radius:16px;box-shadow:none;border:1px solid #e0e7f1;background:#fff;min-width:0}
     .admin-main .panel h2{font-size:18px;letter-spacing:-.025em;margin:0 0 15px}
     .admin-main .panel-title{color:#7789a0;font-size:12px;margin:-8px 0 20px;line-height:1.6}
     .admin-main label{color:#52627a;font-weight:700;font-size:12px}
     .admin-main input,.admin-main select{border:1px solid #dce4f0;background:#f9fbfe;border-radius:9px;min-height:43px;width:100%;color:#193050}
     .admin-main input:focus,.admin-main select:focus{border-color:#7ea8f5;outline:3px solid #dfeafe}
-    .admin-main .grid{grid-template-columns:1fr 1fr}
-    .admin-main .color-row{gap:12px}
+    .admin-main .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 22px}
+    .admin-main .color-row{gap:22px;grid-template-columns:repeat(2,minmax(0,1fr));min-width:0}.admin-main .color-field{min-width:0}
     .admin-main .color-button{border-radius:9px;width:100%;min-height:43px}
     .admin-main button{border-radius:9px}
-    .admin-main .actions{margin-top:22px}
+    .admin-main .actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:22px}.admin-main .actions>button{min-width:180px}
     .admin-main .actions button{flex:1}
     .admin-main .copy-btn{background:#ebf1fb;border:1px solid #d7e3f6;color:#2758b4}
     .admin-main .copy-btn:hover{background:#dae8ff}
@@ -1089,7 +1093,21 @@ function renderGeneratorPage(request) {
     .admin-main .counter-item button{font-size:12px;padding:8px 12px;min-height:35px}
     .admin-main .counter-name{font-size:13px;color:#213653}
     .admin-main .counter-total{font-size:12px}
-    .admin-main .output-row{margin-bottom:15px}
+    .admin-main .output-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;margin-bottom:0}
+    .admin-main .output-row code{min-height:44px;max-height:116px;overflow:auto;overflow-wrap:anywhere}
+    .admin-main .embed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 24px;align-items:start}
+    .admin-main .embed-field{min-width:0}
+    .admin-main .embed-field>.embed-field-label{display:block;margin:0 0 9px;font-size:12px;color:#52627a;font-weight:700}
+    .admin-main .embed-field:last-child{grid-column:1/-1}
+    .admin-main #embedPanel .mode-row{margin-bottom:23px}
+    .admin-main #embedPanel .copy-btn{height:44px;min-height:44px}
+    .admin-main #editorPanel .grid>label{min-width:0}
+    .admin-main #editorPanel .field-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+    .admin-main #editorPanel .field-note{font-size:11px;line-height:1.5}
+    .admin-main #editorPanel .panel-title,.admin-main #embedPanel .panel-title{margin-bottom:25px}
+    #overviewPanel,#editorPanel,#embedPanel,#counterListPanel{scroll-margin-top:30px}
+    .auth-message{margin:0;grid-column:1/-1;min-height:0;font-size:12px;font-weight:650;color:#b54736}
+    .auth-message:empty{display:none}
     .admin-main .mode-row{margin-bottom:14px}
     .admin-main .preview{flex-wrap:wrap;gap:10px}
     .admin-main .hint{line-height:1.65}
@@ -1099,8 +1117,8 @@ function renderGeneratorPage(request) {
     #counterListPanel{margin-top:18px}
     .admin-main .counter-list{margin-top:18px}
     .admin-main .counter-toolbar{margin-top:18px}
-    @media(max-width:1030px){.admin-layout{grid-template-columns:1fr}.admin-aside{position:static;display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:12px}.aside-eyebrow,.aside-note{display:none}.aside-link{margin:0}}
-    @media(max-width:720px){.admin-layout{padding:14px 14px 42px;gap:14px}.admin-workgrid,.stats-overview{grid-template-columns:1fr}.gate{grid-template-columns:1fr;padding:18px}.admin-main .panel{padding:18px}.admin-head{align-items:start;flex-direction:column}.admin-main .counter-item{grid-template-columns:auto minmax(0,1fr)}}
+    @media(max-width:1030px){.admin-layout.is-unlocked{grid-template-columns:minmax(0,1fr)}.admin-aside{position:static;display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:12px}.aside-eyebrow,.aside-note{display:none}.aside-link{width:auto;margin:0}}
+    @media(max-width:720px){.admin-layout{padding:14px 14px 42px;gap:14px}.admin-workgrid,.stats-overview,.admin-main .embed-grid{grid-template-columns:minmax(0,1fr)}.admin-main .embed-field:last-child{grid-column:auto}.admin-main .grid{grid-template-columns:minmax(0,1fr)}.admin-main .color-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.admin-main .actions{grid-template-columns:1fr}.admin-main .actions>button{width:100%}.gate{grid-template-columns:minmax(0,1fr);padding:18px}.admin-main .panel{padding:18px}.admin-head{align-items:start;flex-direction:column}.admin-main .counter-item{grid-template-columns:auto minmax(0,1fr)}.aside-link{flex:1;min-width:130px;justify-content:center}.admin-main .mode-row{justify-content:flex-start;gap:10px}.admin-main .segmented{max-width:100%}}
   </style>
 </head>
 <body>
@@ -1108,20 +1126,20 @@ function renderGeneratorPage(request) {
   <div id="dashboardRoot">
 
     ${uiHeader(new URL(request.url),lang,'admin')}
-    <div class="admin-layout">
-      <aside class="admin-aside" aria-label="${t('Workspace navigation','工作区导航')}">
+    <div class="admin-layout" id="adminLayout">
+      <aside class="admin-aside" id="adminAside" aria-label="${t('Workspace navigation','工作区导航')}" hidden>
         <div class="aside-eyebrow">${t('WORKSPACE','管理工作区')}</div>
-        <a class="aside-link active" href="#overviewPanel"><span class="side-icon">◫</span>${t('Overview','概览')}</a>
-        <a class="aside-link" href="#editorPanel"><span class="side-icon">✎</span>${t('Badge editor','徽章编辑')}</a>
-        <a class="aside-link" href="#counterListPanel"><span class="side-icon">▦</span>${t('My counters','已有计数器')}</a>
-        <a class="aside-link" href="#embedPanel"><span class="side-icon">⌘</span>${t('Embed codes','嵌入代码')}</a>
+        <button class="aside-link" type="button" data-workspace-section="overviewPanel" disabled><span class="side-icon" aria-hidden="true">◫</span>${t('Overview','概览')}</button>
+        <button class="aside-link" type="button" data-workspace-section="editorPanel" disabled><span class="side-icon" aria-hidden="true">✎</span>${t('Badge editor','徽章编辑')}</button>
+        <button class="aside-link" type="button" data-workspace-section="embedPanel" disabled><span class="side-icon" aria-hidden="true">⌘</span>${t('Embed codes','嵌入代码')}</button>
+        <button class="aside-link" type="button" data-workspace-section="counterListPanel" disabled><span class="side-icon" aria-hidden="true">▦</span>${t('My counters','已有计数器')}</button>
         <div class="aside-note"><strong>${t('Private workspace','私有管理空间')}</strong>${t('Your Auth Code is required. Visitors must deploy their own instance to create badges.','所有管理操作都需要 Auth Code。访客需自行部署才能创建徽章。')}</div>
       </aside>
       <main class="admin-main">
-        <div class="admin-head"><div><span class="eyebrow">${t('OWNER CONSOLE','站长控制台')}</span><h1>${t('Counter dashboard','计数器管理后台')}</h1><p>${t('Create, customize and maintain your badges from one place.','在一个工作区中创建、编辑和维护所有访问量徽章。')}</p></div><span class="private-tag">● ${t('Private · Auth required','私有 · 需要验证')}</span></div>
+        <div class="admin-head"><div><span class="eyebrow">${t('OWNER CONSOLE','站长控制台')}</span><h1>${t('Counter dashboard','计数器管理后台')}</h1><p>${t('Create, customize and maintain your badges from one place.','在一个工作区中创建、编辑和维护所有访问量徽章。')}</p></div><div class="gate-buttons"><span class="private-tag">● ${t('Private · Auth required','私有 · 需要验证')}</span><button id="lockDashboard" type="button" hidden class="secondary-btn">${t('Lock workspace','锁定工作区')}</button></div></div>
         <section class="surface gate" id="authGate"><div class="gate-header"><h2>${t('Unlock your workspace','解锁管理工作区')}</h2><p>${t('Use the Auth Code configured when you deployed your own Worker. Credentials are never stored in the browser.','输入部署 Worker 时设置的 Auth Code。管理密码不会保存在浏览器中。')}</p></div>
           <label>${t('Auth Code','管理密码')}<input id="authCode" type="password" autocomplete="off" placeholder="${t('Enter deployment Auth Code','输入部署时设置的管理密码')}"></label>
-          <div class="gate-buttons"><button id="loadCounters" type="button">${t('Unlock & load','解锁并加载')} →</button><button id="lockDashboard" type="button" hidden class="secondary-btn">${t('Lock workspace','锁定工作区')}</button></div>
+          <div class="gate-buttons"><button id="loadCounters" type="button">${t('Unlock & load','解锁并加载')} →</button></div><p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
         </section>
         <div id="workspaceContent" hidden>
           <section id="overviewPanel" class="stats-overview" aria-label="${t('Counters summary','计数器汇总')}">
@@ -1181,11 +1199,12 @@ function renderGeneratorPage(request) {
     </section>
     <section class="panel" id="embedPanel">
       <h2>${t('Embed & share','嵌入与分享')}</h2><p class="panel-title">${t('Copy the generated Markdown or HTML after saving your counter.','保存计数器后，即可复制 Markdown 或 HTML 嵌入代码。')}</p>
-      <div class="mode-row"><span class="mode-label">${t('Link mode','链接模式')}</span><div class="segmented"><button id="savedMode" class="active" type="button">${t('Saved style','保存的样式')}</button><button id="customMode" type="button">${t('Custom URL','自定义链接')}</button></div></div>
-      <p>${t('Markdown · badge','Markdown · 徽章')}</p><div class="output-row"><code id="markdownCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownCode">${t('Copy','复制')}</button></div>
-      <p>${t('Markdown · linked to analytics','Markdown · 链接到统计')}</p><div class="output-row"><code id="markdownLinkCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="markdownLinkCode">${t('Copy','复制')}</button></div>
-      <p>${t('HTML · linked to analytics','HTML · 链接到统计')}</p><div class="output-row"><code id="htmlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="htmlCode">${t('Copy','复制')}</button></div>
-      <p>${t('Image URL','徽章图片链接')}</p><div class="output-row"><code id="imageUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="imageUrlCode">${t('Copy','复制')}</button></div><p>${t('Analytics URL','统计详情链接')}</p><div class="output-row"><code id="statusUrlCode" class="empty">Create a counter first.</code><button class="copy-btn" data-copy="statusUrlCode">${t('Copy','复制')}</button></div>
+      <div class="mode-row"><span class="mode-label">${t('Link mode','链接模式')}</span><div class="segmented"><button id="savedMode" class="active" type="button">${t('Saved style','保存的样式')}</button><button id="customMode" type="button">${t('Custom URL','自定义链接')}</button></div></div><div class="embed-grid">
+      <div class="embed-field"><span class="embed-field-label">${t('Markdown · badge','Markdown · 徽章')}</span><div class="output-row"><code id="markdownCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('Markdown · linked to analytics','Markdown · 链接到统计')}</span><div class="output-row"><code id="markdownLinkCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="markdownLinkCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('HTML · linked to analytics','HTML · 链接到统计')}</span><div class="output-row"><code id="htmlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="htmlCode">${t('Copy','复制')}</button></div></div>
+      <div class="embed-field"><span class="embed-field-label">${t('Image URL','徽章图片链接')}</span><div class="output-row"><code id="imageUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="imageUrlCode">${t('Copy','复制')}</button></div></div><div class="embed-field"><span class="embed-field-label">${t('Analytics URL','统计详情链接')}</span><div class="output-row"><code id="statusUrlCode" class="empty">${t('Create a counter first.','请先创建计数器。')}</code><button class="copy-btn" data-copy="statusUrlCode">${t('Copy','复制')}</button></div></div>
+      </div>
     </section>
           </div>
     <section class="panel" id="counterListPanel">
@@ -1210,6 +1229,7 @@ function renderGeneratorPage(request) {
     let outputMode = 'saved'
     let editingCounter = ''
     let allCounters = []
+    let activeSection = ''
     const paletteColors = ['#D8E3F0', '#F87171', '#64748B', '#2ECC71', '#33C2D8', '#555555', '#E1E95B', '#FF8A65', '#B46AD1', '#A4D3EE', '#FFB6C1', '#FFFFFF']
     function sourceValue() { return $('source').value.trim() }
     function counterValue() { return sourceValue() }
@@ -1349,6 +1369,65 @@ function renderGeneratorPage(request) {
       $('statusLink').href = status
       $('statusLink').style.display = 'inline-block'
     }
+
+    const sidebarButtons = Array.from(document.querySelectorAll('[data-workspace-section]'))
+    function activateWorkspaceSection(id, scroll = false) {
+      if ($('workspaceContent').hidden || !$('adminLayout').classList.contains('is-unlocked')) return
+      const target = $(id)
+      if (!target) return
+      activeSection = id
+      for (const button of sidebarButtons) {
+        const current = button.dataset.workspaceSection === id
+        button.classList.toggle('active', current)
+        if (current) button.setAttribute('aria-current', 'location')
+        else button.removeAttribute('aria-current')
+      }
+      if (scroll) target.scrollIntoView({
+        behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      })
+    }
+    function setWorkspaceUnlocked(unlocked) {
+      $('adminLayout').classList.toggle('is-unlocked', unlocked)
+      $('adminAside').hidden = !unlocked
+      $('workspaceContent').hidden = !unlocked
+      $('authGate').hidden = unlocked
+      $('lockDashboard').hidden = !unlocked
+      for (const button of sidebarButtons) {
+        button.disabled = !unlocked
+        button.setAttribute('aria-disabled', String(!unlocked))
+        if (!unlocked) {
+          button.classList.remove('active')
+          button.removeAttribute('aria-current')
+        }
+      }
+      if (!unlocked) activeSection = ''
+    }
+    for (const button of sidebarButtons) {
+      button.addEventListener('click', () => {
+        if (button.disabled) return
+        activateWorkspaceSection(button.dataset.workspaceSection, true)
+      })
+    }
+    let scrollFramePending = false
+    window.addEventListener('scroll', () => {
+      if ($('workspaceContent').hidden || scrollFramePending) return
+      scrollFramePending = true
+      requestAnimationFrame(() => {
+        scrollFramePending = false
+        if ($('workspaceContent').hidden) return
+        const bottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 10
+        let id = sidebarButtons[0]?.dataset.workspaceSection
+        if (bottom) id = 'counterListPanel'
+        else {
+          for (const button of sidebarButtons) {
+            const target = $(button.dataset.workspaceSection)
+            if (target && target.getBoundingClientRect().top <= 160) id = button.dataset.workspaceSection
+          }
+        }
+        if (id) activateWorkspaceSection(id)
+      })
+    }, { passive: true })
     function renderCounterList(counters) {
       const list = $('counterList')
       list.innerHTML = ''
@@ -1406,6 +1485,7 @@ function renderGeneratorPage(request) {
           setPickerColor('labelColor', config.labelColor || '#A4D3EE')
           setPickerColor('countColor', config.countColor || '#555555')
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
+          activateWorkspaceSection('embedPanel', true)
         })
         const editButton = document.createElement('button')
         editButton.type = 'button'
@@ -1425,8 +1505,8 @@ function renderGeneratorPage(request) {
           $('saveCounter').hidden = false
           $('cancelEdit').hidden = false
           updateOutputs(item.counter, { daily: item.daily || 0, total: item.total || 0 })
-          $('source').focus()
-          $('source').scrollIntoView({ behavior: 'smooth', block: 'center' })
+          activateWorkspaceSection('editorPanel', true)
+          $('source').focus({ preventScroll: true })
         })
         const deleteButton = document.createElement('button')
         deleteButton.type = 'button'
@@ -1528,25 +1608,48 @@ function renderGeneratorPage(request) {
     async function loadCounters(options = {}) {
       const authCode = $('authCode').value.trim()
       if (!authCode) {
-        alert(tr('Auth Code is required','请输入管理密码'))
-        return
+        $('authMessage').textContent = tr('Enter your Auth Code to continue.','请输入管理密码后继续。')
+        $('authCode').focus()
+        return false
       }
-      const res = await fetch('/api/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authCode })
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        alert(data.error || 'Load failed')
-        return
+      const wasUnlocked = !$('workspaceContent').hidden
+      const unlock = $('loadCounters')
+      unlock.disabled = true
+      $('authMessage').textContent = ''
+      try {
+        const res = await fetch('/api/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authCode })
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          const message = res.status === 403
+            ? tr('Incorrect Auth Code. Please try again.','管理密码错误，请重试。')
+            : (data.error || tr('Unable to load counters.','无法加载计数器。'))
+          if (!wasUnlocked) {
+            $('authMessage').textContent = message
+            $('authCode').setAttribute('aria-invalid','true')
+          } else showToast(message)
+          return false
+        }
+        allCounters = data.counters || []
+        renderCounterList(allCounters)
+        setWorkspaceUnlocked(true)
+        $('authCode').removeAttribute('aria-invalid')
+        if (!wasUnlocked) activateWorkspaceSection('overviewPanel')
+        else if (activeSection) activateWorkspaceSection(activeSection)
+        if (options.notify) showToast(tr('Workspace unlocked','管理工作区已解锁'))
+        if (options.scroll) activateWorkspaceSection('counterListPanel', true)
+        return true
+      } catch {
+        const message = tr('Network error. Please try again.','网络错误，请重试。')
+        if (!wasUnlocked) $('authMessage').textContent = message
+        else showToast(message)
+        return false
+      } finally {
+        unlock.disabled = false
       }
-      allCounters = data.counters || []
-      renderCounterList(allCounters)
-      $('workspaceContent').hidden = false
-      $('lockDashboard').hidden = false
-      if (options.notify) showToast(tr('Counters loaded','计数器已加载'))
-      if (options.scroll) $('counterList').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     $('create').addEventListener('click', async () => {
       const counter = counterValue()
@@ -1578,16 +1681,24 @@ function renderGeneratorPage(request) {
     $('counterSearch').addEventListener('input', () => renderCounterList(allCounters))
     $('sortCounters').addEventListener('change', () => renderCounterList(allCounters))
     $('lockDashboard').addEventListener('click', () => {
+      setWorkspaceUnlocked(false)
       $('authCode').value = ''
-      $('workspaceContent').hidden = true
-      $('lockDashboard').hidden = true
+      $('authCode').removeAttribute('aria-invalid')
+      $('authMessage').textContent = ''
+      $('source').value = ''
+      $('label').value = ''
+      $('counterSearch').value = ''
       allCounters = []
       createdCounter = ''
+      currentCounts = { daily: 0, total: 0 }
       stopEditing()
       clearOutputs()
       $('counterList').replaceChildren()
+      for (const id of ['counterCount','visitCount','todayCount']) $(id).textContent = '0'
+      $('authCode').focus()
       showToast(tr('Workspace locked','工作区已锁定'))
     })
+    $('authCode').addEventListener('input', () => { $('authMessage').textContent = ''; $('authCode').removeAttribute('aria-invalid') })
     $('authCode').addEventListener('keydown', event => {
       if (event.key === 'Enter') loadCounters({ notify: true, scroll: false })
     })

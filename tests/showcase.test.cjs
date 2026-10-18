@@ -69,6 +69,13 @@ test('owner dashboard is an independent route and hides workspace until authoriz
     assert.match(html, /id="lockDashboard"/)
     assert.match(html, /id="loadCounters"/)
     assert.match(html, /id="workspaceContent" hidden/)
+    assert.match(html, /id="adminAside"[^>]* hidden/)
+    assert.match(html, /id="adminLayout"/)
+    assert.match(html, /id="authMessage"/)
+    assert.equal((html.match(/data-workspace-section="[^"]+" disabled/g) || []).length, 4, 'locked sidebar navigation must be disabled')
+    assert.equal((html.match(/class="embed-field"/g) || []).length, 5, 'embed outputs must be grouped into consistent fields')
+    assert.match(html, /\.admin-workgrid\{display:grid;grid-template-columns:minmax\(0,1fr\)/)
+    assert.match(html, /\.admin-main \.embed-grid\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/)
     assert.match(html, /id="counterListPanel"/)
     assert.match(html, /id="editorPanel"/)
     assert.match(html, /id="embedPanel"/)
@@ -76,7 +83,8 @@ test('owner dashboard is an independent route and hides workspace until authoriz
     const js = scriptParses(html)
     assert.match(js, /fetch\('\/api\/list'/)
     assert.match(js, /'\/api\/rename'/)
-    assert.match(js, /workspaceContent'\)\.hidden = false/)
+    assert.match(js, /function setWorkspaceUnlocked\(unlocked\)/)
+    assert.match(js, /function activateWorkspaceSection\(id, scroll = false\)/)
     assert.match(js, /counterSearch'\)\.addEventListener/)
     assert.match(js, /lockDashboard'\)\.addEventListener/)
     assert.match(js, /data:image\/svg\+xml;charset=utf-8/)
@@ -116,4 +124,103 @@ test('analytics error page is localized and does not leak any counter state', ()
 test('unsupported unauthenticated badge preview remains blocked', async () => {
   const response = await app.handleRequest(request('/api/preview?label=Visitors'),unavailableDB)
   assert.equal(response.status,404)
+})
+
+test('sidebar is hidden while locked and highlights correct sections after unlock', () => {
+  const html = app.renderGeneratorPage(request('/admin?lang=en'))
+  const js = scriptParses(html)
+  const begin = js.indexOf('    const sidebarButtons =')
+  const end = js.indexOf('    function renderCounterList(counters)', begin)
+  assert.ok(begin >= 0 && end > begin, 'navigation functions must be present')
+  const source = js.slice(begin, end)
+  const ids = ['overviewPanel','editorPanel','embedPanel','counterListPanel']
+  const items = Object.create(null)
+  const buttons = []
+  function makeClasses() {
+    const set = new Set()
+    return {
+      add(name) { set.add(name) },
+      remove(name) { set.delete(name) },
+      contains(name) { return set.has(name) },
+      toggle(name, force) {
+        if (force === undefined ? !set.has(name) : force) set.add(name)
+        else set.delete(name)
+      }
+    }
+  }
+  function makeElement(id) {
+    const attrs = Object.create(null)
+    const element = {
+      id, hidden: id !== 'authGate', disabled: true,
+      classList: makeClasses(), dataset: {},
+      attrs, listeners: {},
+      setAttribute(name, value) { attrs[name] = value },
+      removeAttribute(name) { delete attrs[name] },
+      addEventListener(name, fn) { this.listeners[name] = fn },
+      scrollIntoView() { this.didScroll = true },
+      getBoundingClientRect() { return {top: this.position ?? 500} }
+    }
+    return element
+  }
+  for (const id of ['adminLayout','adminAside','workspaceContent','authGate','lockDashboard',...ids]) items[id] = makeElement(id)
+  items.adminAside.hidden = true
+  items.workspaceContent.hidden = true
+  items.lockDashboard.hidden = true
+  for (const id of ids) {
+    const item = makeElement('nav-' + id)
+    item.dataset.workspaceSection = id
+    buttons.push(item)
+  }
+  const handlers = {}
+  const doc = {
+    querySelectorAll(selector) {
+      assert.equal(selector, '[data-workspace-section]')
+      return buttons
+    },
+    documentElement: { scrollHeight: 3000 }
+  }
+  const fakeWindow = {
+    scrollY: 100, innerHeight: 900,
+    matchMedia: () => ({matches: false}),
+    addEventListener(name, fn) { handlers[name] = fn }
+  }
+  const nav = new Function('$', 'document', 'window', 'requestAnimationFrame',
+    "let activeSection = '';"+source+
+    'return {activateWorkspaceSection,setWorkspaceUnlocked,getActive:()=>activeSection}'
+  )(id => items[id], doc, fakeWindow, fn => fn())
+  assert.equal(items.adminAside.hidden, true)
+  nav.activateWorkspaceSection('editorPanel', true)
+  assert.equal(nav.getActive(), '', 'locked state must ignore navigation')
+  nav.setWorkspaceUnlocked(true)
+  assert.equal(items.adminAside.hidden, false)
+  assert.equal(items.authGate.hidden, true)
+  assert.equal(items.workspaceContent.hidden, false)
+  assert.equal(items.adminLayout.classList.contains('is-unlocked'), true)
+  assert.equal(buttons.every(b => !b.disabled), true)
+  nav.activateWorkspaceSection('overviewPanel')
+  assert.equal(buttons[0].attrs['aria-current'], 'location')
+  buttons[2].listeners.click()
+  assert.equal(nav.getActive(), 'embedPanel')
+  assert.equal(buttons[2].attrs['aria-current'], 'location')
+  assert.equal(buttons[0].attrs['aria-current'], undefined)
+  assert.equal(items.embedPanel.didScroll, true)
+  // Scroll-spy follows the visible pane instead of leaving the previous item active.
+  items.overviewPanel.position = -600
+  items.editorPanel.position = -150
+  items.embedPanel.position = 80
+  items.counterListPanel.position = 500
+  handlers.scroll()
+  assert.equal(nav.getActive(), 'embedPanel')
+  items.counterListPanel.position = 85
+  handlers.scroll()
+  assert.equal(nav.getActive(), 'counterListPanel')
+  nav.setWorkspaceUnlocked(false)
+  assert.equal(items.adminAside.hidden, true)
+  assert.equal(items.authGate.hidden, false)
+  assert.equal(items.workspaceContent.hidden, true)
+  assert.equal(buttons.every(b => b.disabled), true)
+  assert.equal(buttons.every(b => !b.classList.contains('active')), true)
+  assert.equal(buttons.every(b => !('aria-current' in b.attrs)), true)
+  buttons[1].listeners.click()
+  assert.equal(nav.getActive(), '', 'clicking while locked has no effect')
 })
