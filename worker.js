@@ -1131,8 +1131,8 @@ function renderGeneratorPage(request) {
         <div class="aside-eyebrow">${t('WORKSPACE','管理工作区')}</div>
         <button class="aside-link" type="button" data-workspace-section="overviewPanel" disabled><span class="side-icon" aria-hidden="true">◫</span>${t('Overview','概览')}</button>
         <button class="aside-link" type="button" data-workspace-section="editorPanel" disabled><span class="side-icon" aria-hidden="true">✎</span>${t('Badge editor','徽章编辑')}</button>
-        <button class="aside-link" type="button" data-workspace-section="counterListPanel" disabled><span class="side-icon" aria-hidden="true">▦</span>${t('My counters','已有计数器')}</button>
         <button class="aside-link" type="button" data-workspace-section="embedPanel" disabled><span class="side-icon" aria-hidden="true">⌘</span>${t('Embed codes','嵌入代码')}</button>
+        <button class="aside-link" type="button" data-workspace-section="counterListPanel" disabled><span class="side-icon" aria-hidden="true">▦</span>${t('My counters','已有计数器')}</button>
         <div class="aside-note"><strong>${t('Private workspace','私有管理空间')}</strong>${t('Your Auth Code is required. Visitors must deploy their own instance to create badges.','所有管理操作都需要 Auth Code。访客需自行部署才能创建徽章。')}</div>
       </aside>
       <main class="admin-main">
